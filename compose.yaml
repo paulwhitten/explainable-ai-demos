@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    image: explainable-ai-demos:latest
+    restart: unless-stopped
+    mem_limit: 4g
+    expose:
+      - "8000"
+    volumes:
+      # Runtime assets from the ZFS dataset (Gitea/LFS-versioned), not baked into the image.
+      # ASSETS_DIR points at the dataset mount, e.g. /mnt/pool/apps/svm-xai
+      - ${ASSETS_DIR:-./assets}/models:/app/models:ro
+      - ${ASSETS_DIR:-./assets}/kb:/app/kb:ro
+      - ${ASSETS_DIR:-./assets}/out_neighbors:/app/out_neighbors:ro
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    depends_on:
+      - app

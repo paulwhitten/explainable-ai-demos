@@ -6,35 +6,36 @@ import pickle
 import numpy as np
 from enum import Enum
 from sklearn import svm
-import tensorflow as tf
-from tensorflow import keras
 from datetime import datetime
 from scipy.spatial import distance
-#from tensorflow.keras import layers
-from keras import layers
 from io import BytesIO
 import imageio
 import base64
 from sklearn.neural_network import MLPClassifier
-from load_emnist_resnet_data import process_labels_for_resnet, process_mnist_images_for_resnet
-from load_mnist_data import load_mnist_float #, load_mnist_float_images, load_mnist_np_float, load_mnist_np_float_images
 from sklearn.metrics import accuracy_score
+
+# TensorFlow/Keras are imported lazily inside do_cnn/do_resnet so the serving
+# path (CaseObject) never loads them.
 
 MODEL_FOLDER = "cbe_models"
 NN_MODEL_NAME = "nn.model"
 TRAIN_LABEL_NAME = "train_labels.json"
 TRAIN_DATA_NAME = "train_data.json"
+TRAIN_DATA_NPY_NAME = "train_data.npy"
 
 class CaseObject:
     
     def __init__(self, folder):
         self.nn = pickle.load(open(os.path.join(folder, NN_MODEL_NAME), 'rb'))
-        f = open(os.path.join(folder, TRAIN_LABEL_NAME))
-        self.train_labels = json.load(f)
-        f.close()
-        f = open(os.path.join(folder, TRAIN_DATA_NAME))
-        self.train_data = json.load(f)
-        f.close()
+        with open(os.path.join(folder, TRAIN_LABEL_NAME)) as f:
+            self.train_labels = json.load(f)
+        npy_path = os.path.join(folder, TRAIN_DATA_NPY_NAME)
+        if os.path.exists(npy_path):
+            # memory-mapped float32 array avoids the ~1.5 GB Python-list blowup
+            self.train_data = np.load(npy_path, mmap_mode='r')
+        else:
+            with open(os.path.join(folder, TRAIN_DATA_NAME)) as f:
+                self.train_data = np.asarray(json.load(f), dtype=np.float32)
 
 
     def get_prediction(self, img):
@@ -153,6 +154,8 @@ def do_svm(train_images, train_labels, test_images, test_labels):
 
 
 def do_cnn(train_images, train_labels, test_images, test_labels):
+    from tensorflow import keras
+    from keras import layers
     batch_size = 128
     num_epochs = 40
     train_images = train_images.reshape(-1, 28, 28, 1)
@@ -212,6 +215,8 @@ def do_nn(train_images, train_labels, test_images, test_labels):
 
 
 def do_resnet(train_images, train_labels, test_images, test_labels):
+    import tensorflow as tf
+    from load_emnist_resnet_data import process_labels_for_resnet, process_mnist_images_for_resnet
     train_images = np.array(train_images*255.0).astype("uint8")
     train_images = process_mnist_images_for_resnet(train_images)
     train_labels = np.argmax(train_labels, axis=-1)
@@ -257,6 +262,8 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--type', 
                         help='The type of inference engine', type=InferenceEngine, choices=list(InferenceEngine))
     args = parser.parse_args()
+
+    from load_mnist_data import load_mnist_float
 
     start = datetime.now()
     train_N, rows, columns, train_images, train_labels = load_mnist_float(
@@ -309,6 +316,9 @@ if __name__ == '__main__':
 
     with open(os.path.join(args.output, TRAIN_DATA_NAME), 'w') as outfile:
         json.dump(train_images, outfile)
+
+    # also emit a compact float32 array the serving path can memory-map
+    np.save(os.path.join(args.output, TRAIN_DATA_NPY_NAME), np.asarray(train_images, dtype=np.float32))
 
     NEIGHBOR_COUNT = 25
     loaded_neighbors = False
