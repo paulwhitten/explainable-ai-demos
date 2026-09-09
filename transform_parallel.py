@@ -735,8 +735,10 @@ def get_transforms(data, pca_model_path=None):
         load_pca_model(pca_model_path)
     elif pca_model is None:
         # Try default locations
-        for default_path in ["transforms/mnist/train/002/pca_transformer.pkl", 
-                            "transforms/mnist/train/001/pca_transformer.pkl"]:
+        for default_path in ["transforms/mnist/train/002/pca_transformer.pkl",
+                            "transforms/mnist/train/001/pca_transformer.pkl",
+                            "models/mnist/nn/002/pca_transformer.pkl",
+                            "pca_transformer.pkl"]:
             if os.path.exists(default_path):
                 load_pca_model(default_path)
                 break

@@ -69,22 +69,6 @@ def train_batch(batch, id):
     label_array = load_mnist_labels(batch[2])
     n, test_rows, test_columns, test_images, test_labels = load_mnist_float(batch[3], batch[4])
 
-    if batch == "pca":
-        # Load the pre-created PCA model from transforms
-        import os
-        pca_model_path = os.path.join(batch[5], "pca_transformer.pkl")  # batch[5] is output_folder
-        if os.path.exists(pca_model_path):
-            print(f"Loading pre-created PCA model from {pca_model_path}")
-            with open(pca_model_path, 'rb') as f:
-                pca = pickle.load(f)
-            # Transform the data using the loaded model
-            train_images = pca.transform(train_images)
-            test_images = pca.transform(test_images)
-        else:
-            print(f"PCA model not found at {pca_model_path}, creating new one")
-            pca, train_images = do_pca(80, train_images)
-            pca, test_images = do_pca(80, test_images, pca)
-
     max_label = max(label_array)
     min_label = min(label_array)
     print("max_label:", max_label, "min_label:", min_label, flush=True)
@@ -201,8 +185,8 @@ if __name__ == '__main__':
         ["corner", f'{args.train_folder}/corner-image', f'{args.train_folder}/corner-labels',
         f'{args.test_folder}/corner-image', f'{args.test_folder}/corner-labels', args.output_folder, accuracies],
 
-        ["pca", f'{args.train_folder}/raw-image', f'{args.train_folder}/raw-labels',
-        f'{args.test_folder}/raw-image', f'{args.test_folder}/raw-labels', args.output_folder, accuracies]
+        ["pca", f'{args.train_folder}/pca-image', f'{args.train_folder}/pca-labels',
+        f'{args.test_folder}/pca-image', f'{args.test_folder}/pca-labels', args.output_folder, accuracies]
 
 
     ]
