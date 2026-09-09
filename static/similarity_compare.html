@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .space-block { margin-top: 1.2em; }
+        .neighbor { display: inline-block; text-align: center; margin: 2px; font-size: 12px; }
+        .neighbor img { width: 28px; height: 28px; image-rendering: pixelated; border: 1px solid #ccc; display: block; }
+        .neighbor.match img { border: 2px solid #2e7d32; }
+        .corr { font-weight: bold; margin: 0.3em 0; }
+        #centered_img { image-rendering: pixelated; border: 1px solid #ccc; }
+        .note { max-width: 720px; color: #444; }
+    </style>
+</head>
+<body onload="init()">
+    <h3>Similarity comparison: sample vs hidden-layer activation</h3>
+    <p class="note">
+        Draw a digit and submit. The left row shows training cases retrieved by
+        raw-pixel (feature) similarity; the right row shows cases retrieved by the
+        neural network's hidden-layer activation similarity. Feature similarity
+        reflects how the images look; activation similarity reflects how the model
+        represents them internally. Green outlines mark neighbors whose label
+        matches the prediction.
+    </p>
+
+    <canvas id="can" width="280" height="280" style="border: 1px solid #ccc;"></canvas>
+    <div>
+        <input type="button" value="submit" onclick="submit()">
+        <input type="button" value="clear" onclick="erase()">
+    </div>
+
+    <div class="space-block">Centered input: <img id="centered_img" width="28" height="28"></div>
+    <div id="prediction" class="corr"></div>
+
+    <table>
+        <tr>
+            <td style="vertical-align: top; padding-right: 24px;">
+                <div><strong>Sample similarity</strong> (raw pixels / feature space)</div>
+                <div id="feature_corr" class="corr"></div>
+                <div id="feature_neighbors"></div>
+            </td>
+            <td style="vertical-align: top;">
+                <div><strong>Activation similarity</strong> (model representation)</div>
+                <div id="activation_corr" class="corr"></div>
+                <div id="activation_neighbors"></div>
+            </td>
+        </tr>
+    </table>
+
+    <script type="text/javascript">
+    var canvas, ctx, flag = false, prevX = 0, currX = 0, prevY = 0, currY = 0, dot_flag = false;
+    var x = "white", y = 16;
+
+    function init() {
+        canvas = document.getElementById('can');
+        ctx = canvas.getContext("2d");
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        canvas.style.touchAction = 'none';
+        canvas.addEventListener('pointerdown', function (e) {
+            if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+            e.preventDefault();
+            findxy('down', e);
+        }, false);
+        canvas.addEventListener('pointermove', function (e) { findxy('move', e); }, false);
+        canvas.addEventListener('pointerup', function (e) {
+            if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+            e.preventDefault();
+            findxy('up', e);
+        }, false);
+        canvas.addEventListener('pointercancel', function (e) {
+            if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+            findxy('out', e);
+        }, false);
+        ctx.lineWidth = y;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'white';
+    }
+
+    function draw() {
+        ctx.beginPath();
+        ctx.moveTo(prevX, prevY);
+        ctx.lineTo(currX, currY);
+        ctx.strokeStyle = x;
+        ctx.lineWidth = y;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    function erase() {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        document.getElementById("centered_img").src = "";
+        document.getElementById("prediction").textContent = "";
+        document.getElementById("feature_corr").textContent = "";
+        document.getElementById("activation_corr").textContent = "";
+        document.getElementById("feature_neighbors").innerHTML = "";
+        document.getElementById("activation_neighbors").innerHTML = "";
+    }
+
+    function findxy(res, e) {
+        const pos = getCanvasCoords(e);
+        if (res == 'down') {
+            prevX = currX; prevY = currY; currX = pos.x; currY = pos.y;
+            flag = true; dot_flag = true;
+            if (dot_flag) {
+                ctx.beginPath();
+                ctx.fillStyle = x;
+                ctx.fillRect(currX, currY, 2, 2);
+                ctx.closePath();
+                dot_flag = false;
+            }
+        }
+        if (res == 'up' || res == "out") { flag = false; }
+        if (res == 'move' && flag) {
+            prevX = currX; prevY = currY; currX = pos.x; currY = pos.y;
+            draw();
+        }
+    }
+
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] && e.touches[0].clientX);
+        const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] && e.touches[0].clientY);
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    function to28x28Centered(srcCanvas, bgColor = [0,0,0,255]) {
+        const sw = srcCanvas.width, sh = srcCanvas.height;
+        const sctx = srcCanvas.getContext('2d');
+        const sdata = sctx.getImageData(0, 0, sw, sh).data;
+        let minX = sw, minY = sh, maxX = 0, maxY = 0, found = false;
+        for (let yy = 0; yy < sh; yy++) {
+            for (let xx = 0; xx < sw; xx++) {
+                const idx = (yy * sw + xx) * 4;
+                const r = sdata[idx], g = sdata[idx+1], b = sdata[idx+2], a = sdata[idx+3];
+                if (!(r === bgColor[0] && g === bgColor[1] && b === bgColor[2] && a === bgColor[3])) {
+                    found = true;
+                    if (xx < minX) minX = xx;
+                    if (xx > maxX) maxX = xx;
+                    if (yy < minY) minY = yy;
+                    if (yy > maxY) maxY = yy;
+                }
+            }
+        }
+        if (!found) {
+            const tmp = document.createElement('canvas');
+            tmp.width = 28; tmp.height = 28;
+            const tctx = tmp.getContext('2d');
+            tctx.fillStyle = 'black';
+            tctx.fillRect(0,0,28,28);
+            tctx.imageSmoothingEnabled = true;
+            tctx.imageSmoothingQuality = 'high';
+            tctx.drawImage(srcCanvas, 0, 0, sw, sh, 0, 0, 28, 28);
+            return tctx.getImageData(0,0,28,28);
+        }
+        const cw = maxX - minX + 1;
+        const ch = maxY - minY + 1;
+        const inner = 20;
+        const scale = Math.min(inner / cw, inner / ch);
+        const targetW = Math.max(1, Math.round(cw * scale));
+        const targetH = Math.max(1, Math.round(ch * scale));
+        const tmpScaled = document.createElement('canvas');
+        tmpScaled.width = targetW; tmpScaled.height = targetH;
+        const sctx2 = tmpScaled.getContext('2d');
+        sctx2.imageSmoothingEnabled = true;
+        sctx2.imageSmoothingQuality = 'high';
+        sctx2.drawImage(srcCanvas, minX, minY, cw, ch, 0, 0, targetW, targetH);
+        const dst = document.createElement('canvas');
+        dst.width = 28; dst.height = 28;
+        const dctx = dst.getContext('2d');
+        dctx.fillStyle = 'black';
+        dctx.fillRect(0,0,28,28);
+        const dx = Math.round((28 - targetW) / 2);
+        const dy = Math.round((28 - targetH) / 2);
+        dctx.drawImage(tmpScaled, 0, 0, targetW, targetH, dx, dy, targetW, targetH);
+        return dctx.getImageData(0,0,28,28);
+    }
+
+    function renderNeighbors(containerId, neighbors, predicted) {
+        const c = document.getElementById(containerId);
+        c.innerHTML = "";
+        for (const n of neighbors) {
+            const cell = document.createElement('div');
+            cell.className = 'neighbor' + (n.label === predicted ? ' match' : '');
+            const img = document.createElement('img');
+            img.src = 'data:image/png;base64,' + n.b64_image;
+            const cap = document.createElement('div');
+            cap.textContent = n.label;
+            cell.appendChild(img);
+            cell.appendChild(cap);
+            c.appendChild(cell);
+        }
+    }
+
+    function submit() {
+        const imgData = to28x28Centered(canvas);
+        let img = [];
+        for (let i = 0; i < imgData.data.length; i += 4) {
+            img.push(imgData.data[i]);
+        }
+        fetch('/submit_similarity_compare', {
+            method: 'POST',
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify(img)
+        })
+        .then(data => data.json())
+        .then(d => {
+            const r = (typeof d === 'string') ? JSON.parse(d) : d;
+            document.getElementById('centered_img').src = 'data:image/png;base64,' + r.centered;
+            document.getElementById('prediction').textContent = 'Prediction: ' + r.prediction;
+            const f = r.feature, a = r.activation;
+            document.getElementById('feature_corr').textContent =
+                'Correspondence: ' + (f.correspondence * 100).toFixed(1) + '% (' + f.correspondence_interpretation + ')';
+            document.getElementById('activation_corr').textContent =
+                'Correspondence: ' + (a.correspondence * 100).toFixed(1) + '% (' + a.correspondence_interpretation + ')';
+            renderNeighbors('feature_neighbors', f.neighbors, r.prediction);
+            renderNeighbors('activation_neighbors', a.neighbors, r.prediction);
+        })
+        .catch(error => { console.error("Error:", error); });
+    }
+    </script>
+</body>
+</html>

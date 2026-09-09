@@ -198,34 +198,11 @@
 
                 neighbor_count++;
             }
-            document.getElementById("label1").innerHTML = "Prediction: " + case_result.prediction
-            let class_ix = 0
-            crsp = [];
-            for (let c of case_result.correspondence) {
-                crsp.push({class_ix: class_ix, c: c});
-                class_ix++;
-            }
-            crsp.sort((a,b) => {
-                if (a.c < b.c) {
-                    return 1;
-                }
-                if (a.c > b.c) {
-                    return -1;
-                }
-                return 0;
-            });
-            console.log(crsp);
-            for (let i = 0; i < 3; i++) {
-                if (crsp[i].c > 0.0) {
-                    let corr_rat = "Class: " + crsp[i].class_ix + " Correspondence: " + crsp[i].c.toPrecision(3)
-                    if (i == 0 && crsp[i].class_ix != case_result.prediction) {
-                        corr_rat += ". This contradicts the prediction!"
-                    }
-                    document.getElementById("label" + (i + 2)).innerHTML = corr_rat;
-                } else {
-                    break;
-                }
-            }
+            document.getElementById("label1").innerHTML = "Prediction: " + case_result.prediction;
+            let pct = (case_result.correspondence * 100).toFixed(1);
+            document.getElementById("label2").innerHTML = "Correspondence: " + pct + "% (" + case_result.correspondence_interpretation + ")";
+            document.getElementById("label3").innerHTML = "";
+            document.getElementById("label4").innerHTML = "";
         })
         .catch(error => {
             console.error("Error:", error);

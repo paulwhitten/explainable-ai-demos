@@ -9,4 +9,4 @@ scikit-image
 pillow
 imageio
 python-multipart
-case-explainer==0.2.0
+case-explainer>=0.2.0

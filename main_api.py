@@ -6,7 +6,7 @@ from transform_parallel import get_image_from_list, image_data_to_list, get_tran
 from skimage import filters
 from skimage.measure import regionprops
 from calculate_sample import CalcObject
-from case_based_mnist import CaseObject
+from case_explainer_service import CaseExplainerService
 import numpy as np
 #import uvicorn
 import logging
@@ -66,7 +66,7 @@ logging.debug('This message should appear on the console')
 #calc = CalcObject("models/mnist/mlp", "kb/mnist/mlp")
 #calc = CalcObject("models/mnist/nn/001", "kb/mnist/nn/001")  # Previous version
 calc = CalcObject("models/mnist/nn/002", "kb/mnist/nn/002")  # Latest generated models
-cbea = CaseObject("out_neighbors")
+cbe_service = CaseExplainerService("out_neighbors")
 
 app = FastAPI()
 router = APIRouter()
@@ -229,17 +229,9 @@ async def submit(request: Request):
             imageio.imwrite(buf, img.reshape((28, 28)), format='png')
             b64_centered_image = base64.b64encode(buf.getbuffer()).decode('utf-8')
 
-            print("Image data:", centered_data)
-            neighbors, correspondence = cbea.get_neighbors(np.array(centered_data), 10)
-            pred = cbea.get_prediction(np.array(image_data))
-            print("case pred:", pred, neighbors, correspondence)
-
-            res = {}
-            res["neighbors"] = neighbors
-            res["correspondence"] = correspondence
-            res["prediction"] = pred
+            res = cbe_service.explain_feature(centered_data)
             res["centered"] = b64_centered_image
-            
+
             return json.dumps(res)
         
         except json.JSONDecodeError:
@@ -255,6 +247,38 @@ async def submit(request: Request):
     ## TODO process
 
     #return {"json": {}}
+
+# submit endpoint comparing feature-space and activation-space case retrieval
+@app.post("/submit_similarity_compare")
+async def submit_similarity_compare(request: Request):
+    logger.debug("Submit similarity compare")
+    content_type = request.headers.get('Content-Type')
+    if content_type is None:
+        logger.error("content error")
+        return 'No Content-Type provided.'
+    elif content_type == 'application/json':
+        try:
+            body_data = await request.body()
+            image_data = json.loads(body_data)
+            com = center_of_mass(image_data)
+            img = get_image_from_list(image_data)
+            centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
+            centered_data = image_data_to_list(centered)
+            buf = BytesIO()
+            cimg = (np.array(centered_data)).astype(np.uint8)
+            imageio.imwrite(buf, cimg.reshape((28, 28)), format='png')
+            b64_centered_image = base64.b64encode(buf.getbuffer()).decode('utf-8')
+
+            res = cbe_service.explain_both(centered_data)
+            res["centered"] = b64_centered_image
+            return res
+        except json.JSONDecodeError:
+            logger.error("JSON error")
+            return 'Invalid JSON data.'
+    else:
+        logger.error("content type not supported")
+        logger.error(content_type)
+        return 'Content-Type not supported.'
 
 # submit endpoint for mouse_and_touch_draw.html (from 2024 project)
 @app.post("/submit")
