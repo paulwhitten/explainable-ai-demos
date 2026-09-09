@@ -18,7 +18,7 @@ import numpy as np
 import imageio
 from sklearn.neural_network import MLPClassifier
 
-from case_explainer import CaseExplainer, Features, HiddenActivations
+from case_explainer import CaseExplainer, HiddenActivations
 
 NN_MODEL_NAME = "nn.model"
 TRAIN_LABEL_NAME = "train_labels.json"
@@ -78,10 +78,11 @@ class CaseExplainerService:
         class_names = {i: str(i) for i in range(10)}
 
         # MNIST pixels are already on a common 0-1 scale, so disable standardizing.
+        # Feature space stays pure (no model/similarity); the model is supplied at
+        # explain time only to compute the prediction.
         self.feature_explainer = CaseExplainer(
             X_train=X_train, y_train=y_train, k=k,
             algorithm="brute", scale_data=False, class_names=class_names,
-            similarity=Features(model=mlp),
         )
         self.activation_explainer = CaseExplainer(
             X_train=X_train, y_train=y_train, k=k,
@@ -90,7 +91,7 @@ class CaseExplainerService:
         )
 
     def _explain(self, explainer, x_norm):
-        explanation = explainer.explain_instance(test_sample=x_norm)
+        explanation = explainer.explain_instance(test_sample=x_norm, model=self.model)
         return {
             "prediction": int(explanation.predicted_class),
             "correspondence": float(explanation.correspondence),
