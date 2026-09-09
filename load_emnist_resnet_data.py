@@ -1,8 +1,10 @@
 import struct
 import numpy as np
-import tensorflow as tf
 from load_mnist_data import load_mnist
 from skimage import io
+
+# TensorFlow is imported lazily inside the resnet helpers so importing this
+# module (for its class-name constants) does not require TF.
 
 emnist_classes = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
                   "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
@@ -36,6 +38,7 @@ emnist_lower_letter_classes = ["a", "b", "d", "e", "f", "g", "h", "n", "q", "r",
 #  output will be an array of 32x32 color images
 #         using float32
 def process_mnist_images_for_resnet(images):
+    import tensorflow as tf
     # resize the flattened image arrays as (28,28)
     # maintaining the original dimension
     images.resize((images.shape[0],28,28))
@@ -63,6 +66,7 @@ def process_mnist_images_for_resnet(images):
 #  output will be an array of 32x32 color images
 #         using float32
 def combine_mnist_images_for_resnet(im1, im2, im3):
+    import tensorflow as tf
     # resize the flattened image arrays as (28,28)
     # maintaining the original dimension
     im1.resize((im1.shape[0],28,28))
@@ -94,6 +98,7 @@ def combine_mnist_images_for_resnet(im1, im2, im3):
 # is converted to an array with the index of the label
 # as hot.
 def process_labels_for_resnet(labels):
+    import tensorflow as tf
     min_label = min(labels)
     max_label = max(labels)
     labels = tf.keras.utils.to_categorical(labels , num_classes=max_label+1)
