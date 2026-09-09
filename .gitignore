@@ -1,0 +1,51 @@
+venv/
+__pycache__/
+images/
+kb/
+transforms/
+models/
+*.pyc
+node_modules/
+
+# Debug and test files
+debug_*.py
+debug_*.png
+test_*.py
+test_*.png
+simple_debug_*.png
+skeleton_comparison_*.png
+transform_comparison_*.png
+optimized_example_*.png
+
+# Debug directories
+debug_images/
+debug_transforms/
+debug_all_transforms/
+
+# Compressed archives
+*.tgz
+*.tar.gz
+
+# Log directories
+log/
+
+# Output and temporary directories
+out_neighbors/
+assessment_results/
+model_assessment_results/
+old_pipelines/
+cbe_models/
+
+# Output files
+out-*.txt
+output-*.txt
+
+# Dataset directories
+mnist
+
+# Virtual environments and secrets
+.venv/
+.env
+
+# Additional generated data
+cbe_out_mnist/

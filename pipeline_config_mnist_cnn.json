@@ -1,0 +1,19 @@
+{
+    "name": "000",
+    "dataset_type": "mnist",
+    "transform_folder": "transforms",
+    "models_folder": "models",
+    "log_folder": "log",
+    "knowledgebase_folder": "kb",
+    "training_images_file": "/home/pcw/mnist/train-images-idx3-ubyte",
+    "training_labels_file": "/home/pcw/mnist/train-labels-idx1-ubyte",
+    "test_images_file": "/home/pcw/mnist/t10k-images-idx3-ubyte",
+    "test_labels_file": "/home/pcw/mnist/t10k-labels-idx1-ubyte",
+    "model_type": "cnn",
+    "unexplaianble_component": true,
+    "threshold": 0.05,
+    "save_images": false,
+    "save_images_count": 0,
+    "save_images_folder": "",
+    "image_file_ordering": "row"
+}

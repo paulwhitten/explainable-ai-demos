@@ -1,0 +1,19 @@
+{
+    "name": "000",
+    "dataset_type": "emnist_cap",
+    "transform_folder": "transforms",
+    "models_folder": "models",
+    "log_folder": "log",
+    "knowledgebase_folder": "kb",
+    "training_images_file": "transforms/emnist_reduced/train/cap/images",
+    "training_labels_file": "transforms/emnist_reduced/train/cap/labels",
+    "test_images_file": "transforms/emnist_reduced/test/cap/images",
+    "test_labels_file": "transforms/emnist_reduced/test/cap/labels",
+    "image_file_ordering": "column",
+    "model_type": "svm",
+    "unexplaianble_component": true,
+    "save_images": true,
+    "save_images_count": 500,
+    "save_images_folder": "images",
+    "threshold": 0.0
+}

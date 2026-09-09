@@ -1,0 +1,27 @@
+{
+  "name": "2023-svm-xai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "process_kb.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/paulwhitten/2023-svm-xai.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/paulwhitten/2023-svm-xai/issues"
+  },
+  "homepage": "https://gitlab.com/paulwhitten/2023-svm-xai#readme",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "ml-confusion-matrix": "^2.0.0",
+    "simple-statistics": "^7.8.3"
+  }
+}

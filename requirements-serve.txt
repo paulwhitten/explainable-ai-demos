@@ -1,0 +1,12 @@
+# Serving-only dependencies (no TensorFlow). Targets Python 3.12.
+# Versions intentionally unpinned so pip resolves current 3.12-compatible wheels.
+fastapi
+uvicorn[standard]
+numpy
+scipy
+scikit-learn
+scikit-image
+pillow
+imageio
+python-multipart
+case-explainer==0.2.0

@@ -1,0 +1,19 @@
+{
+    "name": "000",
+    "dataset_type": "emnist_full",
+    "transform_folder": "transforms",
+    "models_folder": "models",
+    "log_folder": "log",
+    "knowledgebase_folder": "kb",
+    "training_images_file": "/home/pcw/emnist/data/emnist-balanced-train-images-idx3-ubyte",
+    "training_labels_file": "/home/pcw/emnist/data/emnist-balanced-train-labels-idx1-ubyte",
+    "test_images_file": "/home/pcw/emnist/data/emnist-balanced-test-images-idx3-ubyte",
+    "test_labels_file": "/home/pcw/emnist/data/emnist-balanced-test-labels-idx1-ubyte",
+    "image_file_ordering": "column",
+    "model_type": "cnn",
+    "unexplaianble_component": true,
+    "save_images": true,
+    "save_images_count": 500,
+    "save_images_folder": "images",
+    "threshold": 0.0
+}

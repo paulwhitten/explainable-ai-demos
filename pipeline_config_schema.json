@@ -1,0 +1,15 @@
+{
+    "name": "",
+    "dataset_type": "",
+    "transform_folder": "transforms",
+    "models_folder": "models",
+    "log_folder": "log",
+    "knowledgebase_folder": "kb",
+    "training_images_file": "",
+    "training_labels_file": "",
+    "test_images_file": "",
+    "test_labels_file": "",
+    "model_type": "",
+    "unexplaianble_component": true,
+    "threshold": 0.05
+}

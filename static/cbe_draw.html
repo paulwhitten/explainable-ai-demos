@@ -1,0 +1,428 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <script type="text/javascript">
+    // from https://stackoverflow.com/questions/2368784/draw-on-html5-canvas-using-a-mouse
+    // https://stackoverflow.com/questions/10673122/how-to-save-canvas-as-an-image-with-canvas-todataurl
+    var canvas, ctx, flag = false,
+        prevX = 0,
+        currX = 0,
+        prevY = 0,
+        currY = 0,
+        dot_flag = false;
+
+    var x = "white",
+        y = 16; // Increased line width for the larger canvas
+    
+    function init() {
+        canvas = document.getElementById('can');
+        ctx = canvas.getContext("2d");
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        w = canvas.width;
+        h = canvas.height;
+    
+        // Unified input: use Pointer Events (works for mouse, touch and pen)
+        // Prevent the browser from handling gestures (scroll/zoom) when interacting with the canvas
+        canvas.style.touchAction = 'none';
+
+        // Pointer down/move/up handlers call the same findxy() function
+        canvas.addEventListener('pointerdown', function (e) {
+            if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+            e.preventDefault();
+            findxy('down', e);
+        }, false);
+
+        canvas.addEventListener('pointermove', function (e) {
+            // don't call preventDefault here unless necessary; pointerdown already disabled touch-action
+            findxy('move', e);
+        }, false);
+
+        canvas.addEventListener('pointerup', function (e) {
+            if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+            e.preventDefault();
+            findxy('up', e);
+        }, false);
+
+        canvas.addEventListener('pointercancel', function (e) {
+            if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+            findxy('out', e);
+        }, false);
+
+        ctx.lineWidth = y;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'white';
+    }
+    
+    /*
+    function color(obj) {
+        switch (obj.id) {
+            case "green":
+                x = "green";
+                break;
+            case "blue":
+                x = "blue";
+                break;
+            case "red":
+                x = "red";
+                break;
+            case "yellow":
+                x = "yellow";
+                break;
+            case "orange":
+                x = "orange";
+                break;
+            case "black":
+                x = "black";
+                break;
+            case "white":
+                x = "white";
+                break;
+        }
+        if (x == "white") y = 14;
+        else y = 2;
+    
+    }
+    */
+    
+    function draw() {
+        ctx.beginPath();
+        ctx.moveTo(prevX, prevY);
+        ctx.lineTo(currX, currY);
+        ctx.strokeStyle = x;
+        ctx.lineWidth = y;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.closePath();
+    }
+    
+    function erase() {
+        //var m = confirm("Want to clear");
+        //ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 1; i <= 10; i++) {
+            if ( i <= 4 ) {
+                document.getElementById('label' + i).innerHTML = '';
+            }
+            document.getElementById('l' + i).innerHTML = '';
+        }
+
+        document.getElementById("centered_img").src = "";
+        document.getElementById('n1').src = "";
+        document.getElementById('n2').src = "";
+        document.getElementById('n3').src = "";
+        document.getElementById('n4').src = "";
+        document.getElementById('n5').src = "";
+        document.getElementById('n6').src = "";
+        document.getElementById('n7').src = "";
+        document.getElementById('n8').src = "";
+        document.getElementById('n9').src = "";
+        document.getElementById('n10').src = "";
+    }
+
+    function characterize_confidence(conf) {
+        if (conf >= 0.750) {
+            return "high";
+        } else if ( conf >= 0.250 ) {
+            return "medium"
+        } else {
+            return "low"
+        }
+    }
+    
+    function submit() {
+        // Create a temporary canvas for scaling
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 28;
+        tempCanvas.height = 28;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Scale down the image with smoothing
+        tempCtx.imageSmoothingEnabled = true;
+        tempCtx.imageSmoothingQuality = 'high';
+        tempCtx.drawImage(canvas, 0, 0, 280, 280, 0, 0, 28, 28);
+
+        let transNameToProp = {
+            skel: "stroke",
+            chull: "convex hull",
+            fill: "enclosed region"
+        };
+
+        // scale and center the drawing to 28x28
+        const imgData = to28x28Centered(canvas);
+        //var dataURL = canvas.toDataURL();
+        //console.log('data URL', dataURL);
+        //console.log("image data:", imgData);
+
+        //console.log("length", imgData.data.length);
+        let img = [];
+        for (let i = 0; i < imgData.data.length; i += 4) {
+            img.push(imgData.data[i]);
+        }
+        console.log(img);
+
+        // https://stackoverflow.com/questions/36975619/how-to-call-a-rest-web-service-api-from-javascript
+        // https://fastapi.tiangolo.com/ 
+        fetch('/submit_cbe', {
+            method: 'POST',
+            //crossorigin: true,
+            //mode: 'no-cors',
+            headers: {
+                "Content-Type": "application/json",
+			    "Accept": "application/json"
+            },
+            body: JSON.stringify(img)
+        })
+        .then(data => {
+            return data.json()
+        })
+        .then(d => {
+            console.log("json:", d);
+            console.log(typeof(d));
+            case_result = JSON.parse(d);
+            console.log(case_result);
+            let neighbor_count = 1;
+            document.getElementById("centered_img").src = 'data:image/png;base64,' + case_result.centered;
+            for (let n of case_result.neighbors) {
+                let elt_name = "n" + neighbor_count;
+                var img = document.getElementById(elt_name);
+                console.log("image:", elt_name, img);
+                img.src = 'data:image/png;base64,' + n.b64_image;
+
+                elt_name = "l" + neighbor_count;
+                var p = document.getElementById(elt_name);
+                p.innerHTML = n.label;
+
+                neighbor_count++;
+            }
+            document.getElementById("label1").innerHTML = "Prediction: " + case_result.prediction
+            let class_ix = 0
+            crsp = [];
+            for (let c of case_result.correspondence) {
+                crsp.push({class_ix: class_ix, c: c});
+                class_ix++;
+            }
+            crsp.sort((a,b) => {
+                if (a.c < b.c) {
+                    return 1;
+                }
+                if (a.c > b.c) {
+                    return -1;
+                }
+                return 0;
+            });
+            console.log(crsp);
+            for (let i = 0; i < 3; i++) {
+                if (crsp[i].c > 0.0) {
+                    let corr_rat = "Class: " + crsp[i].class_ix + " Correspondence: " + crsp[i].c.toPrecision(3)
+                    if (i == 0 && crsp[i].class_ix != case_result.prediction) {
+                        corr_rat += ". This contradicts the prediction!"
+                    }
+                    document.getElementById("label" + (i + 2)).innerHTML = corr_rat;
+                } else {
+                    break;
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
+
+    }
+    
+    function findxy(res, e) {
+        const pos = getCanvasCoords(e);
+        if (res == 'down') {
+            prevX = currX;
+            prevY = currY;
+            currX = pos.x;
+            currY = pos.y;
+    
+            flag = true;
+            dot_flag = true;
+            if (dot_flag) {
+                ctx.beginPath();
+                ctx.fillStyle = x;
+                ctx.fillRect(currX, currY, 2, 2);
+                ctx.closePath();
+                dot_flag = false;
+            }
+        }
+        if (res == 'up' || res == "out") {
+            flag = false;
+        }
+        if (res == 'move') {
+            if (flag) {
+                prevX = currX;
+                prevY = currY;
+                currX = pos.x;
+                currY = pos.y;
+                draw();
+            }
+        }
+    }
+
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] && e.touches[0].clientX);
+        const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] && e.touches[0].clientY);
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    function to28x28Centered(srcCanvas, bgColor = [0,0,0,255]) {
+        const sw = srcCanvas.width, sh = srcCanvas.height;
+        const sctx = srcCanvas.getContext('2d');
+        const sdata = sctx.getImageData(0, 0, sw, sh).data;
+
+        let minX = sw, minY = sh, maxX = 0, maxY = 0, found = false;
+        for (let y = 0; y < sh; y++) {
+            for (let x = 0; x < sw; x++) {
+                const idx = (y * sw + x) * 4;
+                const r = sdata[idx], g = sdata[idx+1], b = sdata[idx+2], a = sdata[idx+3];
+                if (!(r === bgColor[0] && g === bgColor[1] && b === bgColor[2] && a === bgColor[3])) {
+                    found = true;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        if (!found) {
+            const tmp = document.createElement('canvas');
+            tmp.width = 28; tmp.height = 28;
+            const tctx = tmp.getContext('2d');
+            tctx.fillStyle = 'black';
+            tctx.fillRect(0,0,28,28);
+            tctx.imageSmoothingEnabled = true;
+            tctx.imageSmoothingQuality = 'high';
+            tctx.drawImage(srcCanvas, 0, 0, sw, sh, 0, 0, 28, 28);
+            return tctx.getImageData(0,0,28,28);
+        }
+
+        const cw = maxX - minX + 1;
+        const ch = maxY - minY + 1;
+        const inner = 20;
+        const scale = Math.min(inner / cw, inner / ch);
+        const targetW = Math.max(1, Math.round(cw * scale));
+        const targetH = Math.max(1, Math.round(ch * scale));
+
+        const tmpScaled = document.createElement('canvas');
+        tmpScaled.width = targetW; tmpScaled.height = targetH;
+        const sctx2 = tmpScaled.getContext('2d');
+        sctx2.imageSmoothingEnabled = true;
+        sctx2.imageSmoothingQuality = 'high';
+        sctx2.drawImage(srcCanvas, minX, minY, cw, ch, 0, 0, targetW, targetH);
+
+        const dst = document.createElement('canvas');
+        dst.width = 28; dst.height = 28;
+        const dctx = dst.getContext('2d');
+        dctx.fillStyle = 'black';
+        dctx.fillRect(0,0,28,28);
+        const dx = Math.round((28 - targetW) / 2);
+        const dy = Math.round((28 - targetH) / 2);
+        dctx.drawImage(tmpScaled, 0, 0, targetW, targetH, dx, dy, targetW, targetH);
+
+        return dctx.getImageData(0,0,28,28);
+    }
+    </script>
+    <body onload="init()">
+        <div>Case-Based Explainability - Draw a digit</div>
+        <br>
+        <div><canvas id="can" width="280" height="280" style="border: 1px solid #ccc;"></canvas></div>
+        <br>
+        <div>
+            <input type="button" value="submit" id="btn" size="25" onclick="submit()">
+            <input type="button" value="clear" id="clr" size="23" onclick="erase()">
+        </div>
+        <br>
+        <br>
+        Centered image: <img id="centered_img" width="28" height="28">
+        <br>
+        <br>
+        <!--<div>Neighbors:</div>-->
+        <div>
+            <table>
+                <tr>
+                    <th>Neighbors</th>
+                    <td>
+                        <img id="n1" width="28" height="28"><figcaption>N01</figcaption>
+                    </td>
+                    <td>
+                        <img id="n2" width="28" height="28"><figcaption>N02</figcaption>
+                    </td>
+                    <td>
+                        <img id="n3" width="28" height="28"><figcaption>N03</figcaption>
+                    </td>
+                    <td>
+                        <img id="n4" width="28" height="28"><figcaption>N04</figcaption>
+                    </td>
+                    <td>
+                        <img id="n5" width="28" height="28"><figcaption>N05</figcaption>
+                    </td>
+                    <td>
+                        <img id="n6" width="28" height="28"><figcaption>N06</figcaption>
+                    </td>
+                    <td>
+                        <img id="n7" width="28" height="28"><figcaption>N07</figcaption>
+                    </td>
+                    <td>
+                        <img id="n8" width="28" height="28"><figcaption>N08</figcaption>
+                    </td>
+                    <td>
+                        <img id="n9" width="28" height="28"><figcaption>N09</figcaption>
+                    </td>
+                    <td>
+                        <img id="n10" width="28" height="28"><figcaption>N10</figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Labels</th>
+                    <td id="l1" style="text-align: center;">
+                    </td>
+                    <td id="l2" style="text-align: center;">
+                    </td>
+                    <td id="l3" style="text-align: center;">
+                    </td>
+                    <td id="l4" style="text-align: center;">
+                    </td>
+                    <td id="l5" style="text-align: center;">
+                    </td>
+                    <td id="l6" style="text-align: center;">
+                    </td>
+                    <td id="l7" style="text-align: center;">
+                    </td>
+                    <td id="l8" style="text-align: center;">
+                    </td>
+                    <td id="l9" style="text-align: center;">
+                    </td>
+                    <td id="l10" style="text-align: center;">
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br>
+        <div>Results:</div>
+        <br>
+        <div><label id="label1"></label> </div>
+        <div><label id="label2"></label> </div>
+        <div><label id="label3"></label> </div>
+        <div><label id="label4"></label> </div>
+
+        
+        <div  style="position: absolute; top: 0; right: 10;">
+            <p>
+                Copyright &copy; 2025
+            </p>
+        </div>
+        
+    </body>
+    </html>
+

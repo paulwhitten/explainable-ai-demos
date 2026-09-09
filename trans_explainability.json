@@ -1,0 +1,16 @@
+{
+    "raw" : 0.0,
+    "crossing": 1.0,
+    "endpoint": 1.0,
+    "fill": 1.0,
+    "skel-fill": 1.0,
+    "skel": 1.0,
+    "thresh": 0.0,
+    "line": 1.0,
+    "ellipse": 1.0,
+    "circle": 1.0,
+    "ellipse-circle": 1.0,
+    "chull": 1.0,
+    "corner": 1.0,
+    "pca": 0.0
+}

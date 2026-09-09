@@ -1,0 +1,15 @@
+[Unit]
+Description=SVM XAI Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=pcw
+Group=pcw
+WorkingDirectory=/home/pcw/dev/2023-svm-xai
+ExecStart=/home/pcw/dev/2023-svm-xai/start_server.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

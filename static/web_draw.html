@@ -1,0 +1,334 @@
+<html>
+    <script type="text/javascript">
+    // from https://stackoverflow.com/questions/2368784/draw-on-html5-canvas-using-a-mouse
+    // https://stackoverflow.com/questions/10673122/how-to-save-canvas-as-an-image-with-canvas-todataurl
+    var canvas, ctx, flag = false,
+        prevX = 0,
+        currX = 0,
+        prevY = 0,
+        currY = 0,
+        dot_flag = false;
+
+    var x = "white",
+        y = 2;
+    
+    function init() {
+        canvas = document.getElementById('can');
+        ctx = canvas.getContext("2d");
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        w = canvas.width;
+        h = canvas.height;
+    
+        canvas.addEventListener("mousemove", function (e) {
+            findxy('move', e)
+        }, false);
+        canvas.addEventListener("mousedown", function (e) {
+            findxy('down', e)
+        }, false);
+        canvas.addEventListener("mouseup", function (e) {
+            findxy('up', e)
+        }, false);
+        canvas.addEventListener("mouseout", function (e) {
+            findxy('out', e)
+        }, false);
+    }
+    
+    /*
+    function color(obj) {
+        switch (obj.id) {
+            case "green":
+                x = "green";
+                break;
+            case "blue":
+                x = "blue";
+                break;
+            case "red":
+                x = "red";
+                break;
+            case "yellow":
+                x = "yellow";
+                break;
+            case "orange":
+                x = "orange";
+                break;
+            case "black":
+                x = "black";
+                break;
+            case "white":
+                x = "white";
+                break;
+        }
+        if (x == "white") y = 14;
+        else y = 2;
+    
+    }
+    */
+    
+    function draw() {
+        ctx.beginPath();
+        ctx.moveTo(prevX, prevY);
+        ctx.lineTo(currX, currY);
+        ctx.strokeStyle = x;
+        ctx.lineWidth = y;
+        ctx.stroke();
+        ctx.closePath();
+    }
+    
+    function erase() {
+        //var m = confirm("Want to clear");
+        //ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < 4; i++) {
+            document.getElementById('label' + i).innerHTML = '';
+        }
+
+        document.getElementById('skel').src = "";
+        document.getElementById('chull').src = "";
+        document.getElementById('endpoint').src = "";
+        document.getElementById('corner').src = "";
+        document.getElementById('crossing').src = "";
+        document.getElementById('line').src = "";
+        document.getElementById('circle').src = "";
+        document.getElementById('ellipse-circle').src = "";
+        document.getElementById('ellipse').src = "";
+        document.getElementById('fill').src = "";
+        document.getElementById('raw').src = "";
+
+
+    }
+
+    function characterize_confidence(conf) {
+        if (conf >= 0.750) {
+            return "high";
+        } else if ( conf >= 0.250 ) {
+            return "medium"
+        } else {
+            return "low"
+        }
+    }
+    
+    function submit() {
+
+        let transNameToProp = {
+            skel: "stroke",
+            chull: "convex hull",
+            fill: "enclosed region"
+        };
+
+        // https://www.w3schools.com/tags/canvas_getimagedata.asp
+        var imgData = ctx.getImageData(0, 0, 28, 28);
+        //var dataURL = canvas.toDataURL();
+        //console.log('data URL', dataURL);
+        //console.log("image data:", imgData);
+
+        //console.log("length", imgData.data.length);
+        let img = [];
+        for (let i = 0; i < imgData.data.length; i += 4) {
+            img.push(imgData.data[i]);
+        }
+        console.log(img);
+
+        // https://stackoverflow.com/questions/36975619/how-to-call-a-rest-web-service-api-from-javascript
+        // https://fastapi.tiangolo.com/ 
+        fetch('/submit', {
+            method: 'POST',
+            //crossorigin: true,
+            //mode: 'no-cors',
+            headers: {
+                "Content-Type": "application/json",
+			    "Accept": "application/json"
+            },
+            body: JSON.stringify(img)
+        })
+        .then(data => {
+            return data.json()
+        })
+        .then(d => {
+            console.log("json:", d)
+            console.log(typeof(d))
+            tally = JSON.parse(d)
+            // get the total weight
+            let total = 0.0
+            for (let v of tally) {
+                // sort attributions based on effectiveness
+                v.attributions.sort((a, b) => {
+                    return b.effectiveness - a.effectiveness;
+                });
+                total += v.value;
+                v["exp"] = v.explainability / v.value;
+            }
+            // sort the votes
+            tally.sort((a, b) => {
+                return b.value - a.value
+            });
+            let count = 0
+            for (let v of tally) {
+                v.pred = v.value / total;
+                let res = "<br>The digit " + v. class
+                if (count == 0) {
+                    res += " won"
+                } else {
+                    res += " was an alternative"
+                }
+                res += " with " + characterize_confidence(v.pred) + " confidence, " + v.pred.toPrecision(3) + ", and " + characterize_confidence(v.exp) +  " explainability, " + v.exp.toPrecision(3) + ", due to the "
+                let prop_ix = 0;
+                for (let a of v.attributions) {
+                    if (a.image) {
+                        //document.getElementById(a.name).style.border = "2px solid";
+                        //var dataURL = canvas.toDataURL();
+                        var img = document.getElementById(a.name);
+                        console.log("image:", a.name, img);
+                        if (img) {
+                            img.src = 'data:image/png;base64,' + a.image;
+                        }
+                        //document.getElementById(a.name).style.display = "inline";
+                        /*
+                        const tmp_canvas = document.createElement('tmp_canvas'); 
+                        const tmp_ctx = canvas.getContext('2d'); 
+                        tmp_canvas.width = 28; 
+                        tmp_canvas.height = 28;
+                        var image_data = tmp_ctx.createImageData(28, 28);
+                        var data = image_data.data;
+                        let count = 0;
+                        for (let i = 0; i < data.length; data += 4) {
+                            data[i] = data[i+1] = data[i+2] = a.image[count];
+                            data[i+3] = 255;
+                            count++;
+                        }
+                        tmp_ctx.putImageData(image_data, 0, 0);
+                        var dataURL = canvas.toDataURL();
+                        img.src = dataURL;
+                        */
+                    }
+                    if (prop_ix != 0) {
+                        res += ", "
+                    }
+                    res += transNameToProp[a.name] || a.name
+                    prop_ix++;
+                }
+                res += " propert"
+                if (prop_ix > 1) {
+                    res += "ies"
+                } else {
+                    res += "y"
+                }
+                res += "."
+                res += v.failures
+                res += "\n<br><hr>"
+                if (count < 4 && v.value > 0.0) {
+                    document.getElementById('label' + count).innerHTML = res;
+                }
+                count++;
+            }
+            console.log("tally:", tally)
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
+
+    }
+    
+    function findxy(res, e) {
+        if (res == 'down') {
+            prevX = currX;
+            prevY = currY;
+            currX = e.clientX - canvas.offsetLeft;
+            currY = e.clientY - canvas.offsetTop;
+    
+            flag = true;
+            dot_flag = true;
+            if (dot_flag) {
+                ctx.beginPath();
+                ctx.fillStyle = x;
+                ctx.fillRect(currX, currY, 2, 2);
+                ctx.closePath();
+                dot_flag = false;
+            }
+        }
+        if (res == 'up' || res == "out") {
+            flag = false;
+        }
+        if (res == 'move') {
+            if (flag) {
+                prevX = currX;
+                prevY = currY;
+                currX = e.clientX - canvas.offsetLeft;
+                currY = e.clientY - canvas.offsetTop;
+                draw();
+            }
+        }
+    }
+    </script>
+    <body onload="init()">
+
+        <div>
+        <div>Property-Based Explainability - Draw a digit</div>
+        <br>
+        <div><canvas id="can" width="28" height="28"></canvas></div>
+        <br>
+        <div>
+            <input type="button" value="submit" id="btn" size="25" onclick="submit()">
+            <input type="button" value="clear" id="clr" size="23" onclick="erase()">
+        </div>
+        <br>
+        <div>Transforms:</div>
+        <div>
+            <table>
+                <tr>
+                    <td>
+                        <img id="skel" width="28" height="28"><figcaption>Skel</figcaption>
+                    </td>
+                    <td>
+                        <img id="chull" width="28" height="28"><figcaption>Chu</figcaption>
+                    </td>
+                    <td>
+                        <img id="endpoint" width="28" height="28"><figcaption>EP</figcaption>
+                    </td>
+                    <td>
+                        <img id="corner" width="28" height="28"><figcaption>Cor</figcaption>
+                    </td>
+                    <td>
+                        <img id="crossing" width="28" height="28"><figcaption>Cro</figcaption>
+                    </td>
+                    <td>
+                        <img id="line" width="28" height="28"><figcaption>Lin</figcaption>
+                    </td>
+                    <td>
+                        <img id="circle" width="28" height="28"><figcaption>Cir</figcaption>
+                    </td>
+                    <td>
+                        <img id="ellipse-circle" width="28" height="28"><figcaption>EC</figcaption>
+                    </td>
+                    <td>
+                        <img id="ellipse" width="28" height="28"><figcaption>El</figcaption>
+                    </td>
+                    <td>
+                        <img id="fill" width="28" height="28"><figcaption>Fill</figcaption>
+                    </td>
+                    <td>
+                        <img id="raw" width="28" height="28"><figcaption>Raw</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br>
+        <div>Results:</div>
+        <div><label id="label0"></label> </div>
+        <div><label id="label1"></label> </div>
+        <div><label id="label2"></label> </div>
+        <div><label id="label3"></label> </div>
+
+        
+        <div  style="position: absolute; top: 0; right: 10;">
+            <p>
+                Copyright &copy; 2025
+            </p>
+        </div>
+        </div>
+        
+    </body>
+    </html>
+

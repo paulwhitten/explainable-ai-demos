@@ -1,0 +1,848 @@
+<html>
+<head>
+    <style>
+        .transform-section {
+            margin: 10px 0;
+        }
+        
+        .transform-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .transform-cell {
+            position: relative;
+            cursor: pointer;
+            padding: 5px;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        
+        .transform-cell:hover {
+            background-color: #e6f3ff;
+            border-radius: 5px;
+        }
+        
+        .effectiveness-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #28a745;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            max-width: 200px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 60%;
+            border-radius: 8px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: black;
+        }
+        
+        .result-explanation {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        
+        .transform-contribution {
+            margin: 3px 0;
+            padding: 3px;
+        }
+        
+        .transform-name {
+            color: #0066cc;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        
+        .contribution-value {
+            font-weight: bold;
+            color: #28a745;
+        }
+    </style>
+</head>
+<script type="text/javascript">
+// Property explanations database (using property names, not transform names)
+const TRANSFORM_EXPLANATIONS = {
+    "skel": {
+        name: "Stroke",
+        shortDesc: "Core structural backbone",
+        longDesc: "Extracts the essential shape structure by thinning the digit to its centerline, like finding the skeleton inside the shape. This reveals the fundamental connectivity and structure of the digit.",
+        goodFor: ["All digits", "Shape analysis", "Structural connectivity"],
+        effectiveness: "99.86% AUC (Outstanding)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - the skeletal structure directly corresponds to the visual concept of 'strokes' that humans use to understand digits.",
+        example: "For a '7', shows the horizontal top stroke and diagonal line clearly separated from any thickness variations.",
+        color: "#28a745"
+    },
+    "ellipse": {
+        name: "Ellipse Property", 
+        shortDesc: "Finds oval/elliptical shapes",
+        longDesc: "Uses computer vision to detect elliptical and oval components within the digit. Recently optimized with improved parameters for better MNIST digit recognition.",
+        goodFor: ["0", "6", "8", "9", "Curved digits"],
+        effectiveness: "81.49% AUC (Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - ellipses are intuitive geometric shapes that humans can easily visualize and understand in digit structure.",
+        example: "Highlights the oval loop in '0' or identifies the circular portions in '6' and '9'.",
+        color: "#17a2b8"
+    },
+    "circle": {
+        name: "Circle Property",
+        shortDesc: "Finds circular components", 
+        longDesc: "Identifies perfect circular shapes and near-circular regions using Hough circle detection. Works especially well with the newly optimized parameters (radius 4-12, threshold 0.35).",
+        goodFor: ["0", "8", "9", "Round features"],
+        effectiveness: "86.40% AUC (Very Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - circles are fundamental geometric shapes that are immediately recognizable and meaningful to humans.",
+        example: "Detects the circular loops in '8' or the round part of '9'.",
+        color: "#6610f2"
+    },
+    "ellipse-circle": {
+        name: "Ellipse-Circle Property",
+        shortDesc: "Best of both geometric detectors",
+        longDesc: "Combines ellipse and circle detection for comprehensive geometric shape analysis. This hybrid approach captures both perfect circles and stretched oval shapes.",
+        goodFor: ["0", "6", "8", "9", "All curved digits"],
+        effectiveness: "87.23% AUC (Very Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - combines two well-understood geometric concepts (circles and ellipses) into a comprehensive shape analysis.",
+        example: "Provides the most complete geometric analysis, catching both the oval and circular aspects of complex digits like '8'.",
+        color: "#e83e8c"
+    },
+    "corner": {
+        name: "Corner Property",
+        shortDesc: "Finds sharp angles and turns",
+        longDesc: "Identifies corner points where the direction changes sharply, indicating angles, sharp turns, and geometric vertices in the digit structure.",
+        goodFor: ["4", "7", "L-shapes", "Angular digits"],
+        effectiveness: "64.46% AUC (Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - corners and angles are fundamental visual features that humans naturally recognize when analyzing shapes.",
+        example: "Detects the sharp corner where the horizontal and vertical lines meet in '4', or the top corner of '7'.",
+        color: "#fd7e14"
+    },
+    "endpoint": {
+        name: "Endpoint Property",
+        shortDesc: "Marks where strokes begin/end",
+        longDesc: "Finds the terminal points of strokes - where lines start or stop. These are crucial for understanding digit topology and structure.",
+        goodFor: ["1", "7", "Open-ended digits"],
+        effectiveness: "83.42% AUC (Very Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - endpoints correspond directly to where humans see strokes starting and ending, making this very intuitive.",
+        example: "Identifies the top and bottom of '1', or the free ends of the strokes in '7'.",
+        color: "#20c997"
+    },
+    "crossing": {
+        name: "Crossing Property",
+        shortDesc: "Finds line intersections",
+        longDesc: "Detects points where strokes cross or intersect each other. Critical for identifying complex digits with overlapping structure.",
+        goodFor: ["4", "8", "#-like shapes"],
+        effectiveness: "41.28% AUC (Moderate)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - intersection points are clearly visible locations where humans can see lines crossing each other.",
+        example: "Finds where the horizontal and vertical lines cross in '4', or where the loops intersect in '8'.",
+        color: "#dc3545"
+    },
+    "line": {
+        name: "Line Property",
+        shortDesc: "Detects straight line segments",
+        longDesc: "Identifies straight line segments within the digit using line detection algorithms. Helps distinguish between curved and straight components.",
+        goodFor: ["1", "7", "4", "Digits with straight edges"],
+        effectiveness: "63.62% AUC (Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - straight lines are fundamental geometric elements that humans easily recognize and understand.",
+        example: "Detects the straight vertical stroke in '1' or the horizontal line at the top of '7'.",
+        color: "#6f42c1"
+    },
+    "chull": {
+        name: "Convex Hull Property",
+        shortDesc: "Outer boundary envelope",
+        longDesc: "Computes the convex hull - the smallest convex shape that contains the entire digit. This shows the overall outline and boundary characteristics.",
+        goodFor: ["Overall shape", "Boundary analysis", "Size estimation"],
+        effectiveness: "84.16% AUC (Very Good)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - the convex hull represents the overall shape boundary that humans can easily visualize as the 'outline' of the digit.",
+        example: "Shows the overall triangular envelope of '7' or the rectangular boundaries of '1'.",
+        color: "#28a745"
+    },
+    "fill": {
+        name: "Enclosed Region Property",
+        shortDesc: "Finds enclosed areas",
+        longDesc: "Identifies regions that are completely enclosed by the digit strokes, such as the holes in letters or the internal areas of digits.",
+        goodFor: ["0", "4", "6", "8", "9", "Digits with holes"],
+        effectiveness: "46.83% AUC (Moderate)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - enclosed regions correspond to 'holes' or 'filled areas' that humans naturally perceive when looking at digits.",
+        example: "Fills the internal hole in '0' or the enclosed triangle in '4'.",
+        color: "#ffc107"
+    },
+    "skel-fill": {
+        name: "Skeleton with Fill",
+        shortDesc: "Combines structure and enclosed areas",
+        longDesc: "Combines the skeletal structure with filled regions to provide both the backbone of the digit and its enclosed areas. This hybrid approach captures structural and spatial information together.",
+        goodFor: ["Complex digits", "Complete structural analysis"],
+        effectiveness: "Variable (Combined approach)",
+        explainability: "High Interpretability",
+        explainabilityDesc: "Highly interpretable - combines two well-understood concepts (skeleton structure and filled regions) that humans can easily relate to visual perception.",
+        example: "Shows both the stroke structure of '8' and fills its internal loops, providing complete structural information.",
+        color: "#17a2b8"
+    },
+    "raw": {
+        name: "Raw Pixel Data",
+        shortDesc: "Original unprocessed image",
+        longDesc: "The original pixel data without any processing or feature extraction. Serves as the baseline and provides the complete visual information.",
+        goodFor: ["All digits", "Baseline comparison"],
+        effectiveness: "97.92% AUC (Outstanding)",
+        explainability: "⚠️ Low Interpretability",
+        explainabilityDesc: "Limited interpretability - while highly effective, raw pixels don't provide human-understandable features or explanations for why decisions are made.",
+        example: "Shows exactly what you drew, pixel by pixel.",
+        color: "#343a40"
+    },
+    "pca": {
+        name: "PCA Eigendigit Property",
+        shortDesc: "Principal component patterns",
+        longDesc: "Shows the eigendigit patterns - the fundamental visual building blocks that PCA uses to represent digits. These are the most important pixel patterns that capture how digits vary from each other, like vertical strokes, circular shapes, and diagonal lines.",
+        goodFor: ["All digits", "Pattern analysis", "Dimensional reduction"],
+        effectiveness: "Variable (Pattern-dependent)",
+        explainability: "⚠️ Low Interpretability", 
+        explainabilityDesc: "Limited interpretability - while PCA components capture important patterns, they are mathematical abstractions that don't correspond to intuitive visual concepts humans use.",
+        example: "Highlights whether your digit matches common patterns like vertical strokes (for '1'), circular loops (for '0', '8'), or diagonal elements (for '7', '4').",
+        color: "#795548"
+    },
+    "thresh": {
+        name: "Binary Threshold",
+        shortDesc: "Simple black/white conversion",
+        longDesc: "Converts the image to pure black and white pixels using a threshold value. This removes grayscale information and creates a stark binary representation.",
+        goodFor: ["Noise reduction", "Simplification"],
+        effectiveness: "Variable (Threshold-dependent)",
+        explainability: "⚠️ Low Interpretability",
+        explainabilityDesc: "Limited interpretability - while the binary result is visually simple, the threshold choice is arbitrary and doesn't provide meaningful feature explanations.",
+        example: "Converts your gray-scale drawing to pure black and white pixels.",
+        color: "#6c757d"
+    }
+};
+
+// Tooltip functions
+function showQuickTooltip(element, transformName) {
+    const tooltip = document.getElementById('quick-tooltip');
+    const transform = TRANSFORM_EXPLANATIONS[transformName];
+    
+    if (transform) {
+        tooltip.innerHTML = `<strong>${transform.name}</strong><br>${transform.shortDesc}<br><small>Effectiveness: ${transform.effectiveness}<br>Interpretability: ${transform.explainability}</small>`;
+        tooltip.style.display = 'block';
+        
+        // Position tooltip near the element
+        const rect = element.getBoundingClientRect();
+        tooltip.style.left = (rect.left + rect.width / 2 - 100) + 'px';
+        tooltip.style.top = (rect.top - 80) + 'px';
+    }
+}
+
+function hideQuickTooltip() {
+    document.getElementById('quick-tooltip').style.display = 'none';
+}
+
+function showDetailedExplanation(transformName) {
+    const modal = document.getElementById('detailed-modal');
+    const modalBody = document.getElementById('modal-body');
+    const transform = TRANSFORM_EXPLANATIONS[transformName];
+    
+    if (transform) {
+        modalBody.innerHTML = `
+            <h2 style="color: ${transform.color};">${transform.name}</h2>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                <strong>Quick Summary:</strong> ${transform.shortDesc}
+            </div>
+            <h3>Detailed Explanation</h3>
+            <p>${transform.longDesc}</p>
+            
+            <h3>Performance</h3>
+            <div style="background: #e8f5e8; padding: 10px; border-radius: 5px;">
+                <strong>Effectiveness:</strong> ${transform.effectiveness}
+            </div>
+            
+            <h3>Interpretability</h3>
+            <div style="background: ${transform.explainability.includes('Low') ? '#ffe6e6' : '#e6f3ff'}; padding: 10px; border-radius: 5px; border-left: 4px solid ${transform.explainability.includes('Low') ? '#ff9999' : '#66b3ff'};">
+                <strong>${transform.explainability}:</strong> ${transform.explainabilityDesc}
+            </div>
+            
+            <h3>Best For</h3>
+            <ul>
+                ${transform.goodFor.map(item => `<li>${item}</li>`).join('')}
+            </ul>
+            
+            <h3>Example</h3>
+            <div style="background: #fff3cd; padding: 10px; border-radius: 5px; border-left: 4px solid #ffc107;">
+                ${transform.example}
+            </div>
+        `;
+        modal.style.display = 'block';
+    }
+}
+
+function closeDetailedModal() {
+    document.getElementById('detailed-modal').style.display = 'none';
+}
+
+function toggleEffectiveness() {
+    const badges = document.querySelectorAll('.effectiveness-badge');
+    const isVisible = badges[0].style.display !== 'none';
+    
+    badges.forEach(badge => {
+        badge.style.display = isVisible ? 'none' : 'block';
+    });
+    
+    const btn = document.getElementById('show-effectiveness-btn');
+    btn.textContent = isVisible ? '📊 Show AUC' : '📊 Hide AUC';
+}
+
+// Load effectiveness metrics dynamically from the API
+async function loadEffectivenessMetrics(buildName = '002') {
+    try {
+        const response = await fetch(`/api/effectiveness/${buildName}`);
+        if (response.ok) {
+            const metrics = await response.json();
+            
+            // Update each transform's effectiveness badge
+            Object.keys(metrics).forEach(transform => {
+                const badge = document.querySelector(`[data-transform="${transform}"] .effectiveness-badge`);
+                if (badge) {
+                    badge.textContent = metrics[transform];
+                }
+            });
+            
+            console.log('Effectiveness metrics loaded:', metrics);
+        } else {
+            console.warn('Could not load effectiveness metrics, using defaults');
+            // Fallback to defaults if API fails
+            setDefaultEffectivenessValues();
+        }
+    } catch (error) {
+        console.error('Error loading effectiveness metrics:', error);
+        setDefaultEffectivenessValues();
+    }
+}
+
+// Fallback function to set default AUC (overall effectiveness) values
+function setDefaultEffectivenessValues() {
+    const defaults = {
+        'skel': '99.9%', 'ellipse': '81.2%', 'circle': '86.7%', 'ellipse_circle': '87.3%',
+        'corner': '64.8%', 'endpoint': '83.1%', 'crossing': '41.5%', 'line': '64.2%',
+        'chull': '84.6%', 'fill': '47.3%', 'raw': '98.2%', 'pca': '89.1%'
+    };
+    
+    Object.keys(defaults).forEach(transform => {
+        const badge = document.querySelector(`[data-transform="${transform}"] .effectiveness-badge`);
+        if (badge) {
+            badge.textContent = defaults[transform];
+        }
+    });
+}
+
+function showTransformGuide() {
+    const modal = document.getElementById('detailed-modal');
+    const modalBody = document.getElementById('modal-body');
+    
+    modalBody.innerHTML = `
+        <h2>Property Guide</h2>
+        <p>Click on any property image to see detailed information, or hover for quick descriptions.</p>
+        
+        <h3>Performance Categories</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0;">
+            <div style="background: #d4edda; padding: 8px; border-radius: 5px;">
+                <strong>Outstanding (95%+):</strong> Raw, Skeleton
+            </div>
+            <div style="background: #cce7ff; padding: 8px; border-radius: 5px;">
+                <strong>Very Good (80-95%):</strong> Ellipse-Circle, Circle, Convex Hull, Endpoint
+            </div>
+            <div style="background: #fff3cd; padding: 8px; border-radius: 5px;">
+                <strong>Good (60-80%):</strong> Ellipse, Corner, Line
+            </div>
+        </div>
+        
+        <h3>Understanding the Results</h3>
+        <p>When you submit a drawing, each property analyzes different aspects:</p>
+        <ul>
+            <li><strong>Geometric properties</strong> (ellipse, circle, corner) look for specific shapes</li>
+            <li><strong>Structural properties</strong> (stroke, endpoint, crossing) analyze connectivity</li>
+            <li><strong>Boundary properties</strong> (convex hull, enclosed region) examine outlines and regions</li>
+        </ul>
+        
+        <p>The final prediction combines evidence from multiple properties, with more effective properties having greater influence.</p>
+    `;
+    
+    modal.style.display = 'block';
+}
+
+// Rest of your existing JavaScript code goes here...
+// (canvas drawing functions, submit function, etc.)
+
+// Your existing variables and functions
+var canvas, ctx, flag = false,
+    prevX = 0,
+    currX = 0,
+    prevY = 0,
+    currY = 0,
+    dot_flag = false;
+
+var x = "white",
+    y = 16;
+
+function init() {
+    // Your existing init code...
+    canvas = document.getElementById('can');
+    ctx = canvas.getContext("2d");
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    w = canvas.width;
+    h = canvas.height;
+
+    // Your existing event listeners...
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown', function (e) {
+        if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        findxy('down', e);
+    }, false);
+
+    canvas.addEventListener('pointermove', function (e) {
+        findxy('move', e);
+    }, false);
+
+    canvas.addEventListener('pointerup', function (e) {
+        if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+        e.preventDefault();
+        findxy('up', e);
+    }, false);
+
+    canvas.addEventListener('pointercancel', function (e) {
+        if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+        findxy('out', e);
+    }, false);
+
+    ctx.lineWidth = y;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'white';
+}
+
+// Your existing drawing and submission functions...
+function draw() {
+    ctx.beginPath();
+    ctx.moveTo(prevX, prevY);
+    ctx.lineTo(currX, currY);
+    ctx.strokeStyle = x;
+    ctx.lineWidth = y;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.closePath();
+}
+
+function erase() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Clear all result labels
+    for (let i = 0; i < 4; i++) {
+        document.getElementById('label' + i).innerHTML = '';
+    }
+
+    // Clear all property images
+    document.getElementById('skel').src = "";
+    document.getElementById('chull').src = "";
+    document.getElementById('endpoint').src = "";
+    document.getElementById('corner').src = "";
+    document.getElementById('crossing').src = "";
+    document.getElementById('line').src = "";
+    document.getElementById('circle').src = "";
+    document.getElementById('ellipse-circle').src = "";
+    document.getElementById('ellipse').src = "";
+    document.getElementById('fill').src = "";
+    document.getElementById('raw').src = "";
+    document.getElementById('pca').src = "";
+}
+
+function findxy(res, e) {
+    if (res == 'down') {
+        prevX = currX;
+        prevY = currY;
+        currX = e.clientX - canvas.offsetLeft;
+        currY = e.clientY - canvas.offsetTop;
+
+        flag = true;
+        dot_flag = true;
+        if (dot_flag) {
+            ctx.beginPath();
+            ctx.fillStyle = x;
+            ctx.fillRect(currX, currY, 2, 2);
+            ctx.closePath();
+            dot_flag = false;
+        }
+    }
+    if (res == 'up' || res == "out") {
+        flag = false;
+    }
+    if (res == 'move') {
+        if (flag) {
+            prevX = currX;
+            prevY = currY;
+            currX = e.clientX - canvas.offsetLeft;
+            currY = e.clientY - canvas.offsetTop;
+            draw();
+        }
+    }
+}
+
+function characterize_confidence(val) {
+    if (val > 0.8) return "high";
+    if (val > 0.5) return "medium";
+    return "low";
+}
+
+function submit() {
+    // Your existing submit code with enhanced result display...
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 28;
+    tempCanvas.height = 28;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    tempCtx.imageSmoothingEnabled = true;
+    tempCtx.imageSmoothingQuality = 'high';
+    tempCtx.drawImage(canvas, 0, 0, 280, 280, 0, 0, 28, 28);
+
+    var imgData = tempCtx.getImageData(0, 0, 28, 28);
+    let img = [];
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        img.push(imgData.data[i]);
+    }
+
+    fetch('/submit_pbe', {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        },
+        body: JSON.stringify(img)
+    })
+    .then(data => data.json())
+    .then(d => {
+        const tally = JSON.parse(d);
+        displayEnhancedResults(tally);
+    })
+    .catch(error => {
+        console.error("Error:", error);
+    });
+}
+
+function displayEnhancedResults(tally) {
+    // Enhanced result display with transform explanations
+    let total = 0.0;
+    for (let v of tally) {
+        v.attributions.sort((a, b) => b.effectiveness - a.effectiveness);
+        total += v.value;
+        v["exp"] = v.explainability / v.value;
+    }
+    
+    tally.sort((a, b) => b.value - a.value);
+    
+    let count = 0;
+    for (let v of tally) {
+        v.pred = v.value / total;
+        
+        let res = `<div class="result-explanation">`;
+        res += `<h4>`;
+        if (count === 0) {
+            res += `🏆 Winner: Digit ${v.class}`;
+        } else {
+            res += `Alternative: Digit ${v.class}`;
+        }
+        res += ` (${(v.pred * 100).toFixed(1)}% confidence)</h4>`;
+        
+        // Add explainability information like in original pbe_draw.html
+        const explainabilityPercent = (v.exp * 100).toFixed(1);
+        const explainabilityLevel = v.exp >= 0.75 ? 'high' : (v.exp >= 0.25 ? 'medium' : 'low');
+        res += `<div class="explainability-info" style="margin-bottom: 10px; padding: 8px; background: ${explainabilityLevel === 'high' ? '#e8f5e8' : explainabilityLevel === 'medium' ? '#fff3cd' : '#ffe6e6'}; border-radius: 5px;">`;
+        res += `<strong>Explainability:</strong> ${explainabilityPercent}% (${explainabilityLevel}) - This prediction is based on ${explainabilityLevel === 'high' ? 'highly interpretable' : explainabilityLevel === 'medium' ? 'moderately interpretable' : 'less interpretable'} evidence.`;
+        res += `</div>`;
+        
+        res += `<div class="contributing-transforms">`;
+        res += `<strong>Key Evidence:</strong><br>`;
+        
+        for (let a of v.attributions) {
+            if (a.image) {
+                const img = document.getElementById(a.name);
+                if (img) {
+                    img.src = 'data:image/png;base64,' + a.image;
+                }
+            }
+            
+            const transform = TRANSFORM_EXPLANATIONS[a.name];
+            if (transform) {
+                res += `<div class="transform-contribution">`;
+                res += `<span class="transform-name" onclick="showDetailedExplanation('${a.name}')" style="color: ${transform.color};">`;
+                res += `${transform.name}</span>: `;
+                
+                // Use the raw value if it's a valid number, otherwise show effectiveness
+                let contributionText = '';
+                if (typeof a.value === 'number' && !isNaN(a.value) && a.value > 0) {
+                    contributionText = `<span class="contribution-value">${a.value.toFixed(3)}</span>`;
+                } else if (typeof a.effectiveness === 'number' && !isNaN(a.effectiveness)) {
+                    contributionText = `<span class="contribution-value">${(a.effectiveness * 100).toFixed(1)}% effective</span>`;
+                } else {
+                    contributionText = `<span class="contribution-value">contributing</span>`;
+                }
+                
+                res += contributionText;
+                
+                // Show explainability score for each transform
+                if (typeof a.exp === 'number') {
+                    const expIcon = a.exp === 1.0 ? '✓' : a.exp === 0.0 ? '⚠️' : '~';
+                    const expColor = a.exp === 1.0 ? '#28a745' : a.exp === 0.0 ? '#dc3545' : '#ffc107';
+                    res += ` <span style="color: ${expColor};" title="Explainability: ${(a.exp * 100).toFixed(0)}%">${expIcon}</span>`;
+                }
+                
+                res += ` - ${transform.shortDesc}`;
+                res += `</div>`;
+            }
+        }
+        
+        res += `</div>`;
+        
+        // Add failure analysis if available
+        if (v.failures && v.failures.trim() !== '') {
+            res += `<div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 3px;">`;
+            res += `<strong>Known Limitations:</strong>`;
+            res += v.failures;
+            res += `</div>`;
+        }
+        
+        res += `</div>`;
+        
+        if (count < 4 && v.value > 0.0) {
+            document.getElementById('label' + count).innerHTML = res;
+        }
+        count++;
+    }
+}
+
+</script>
+<body onload="init()">
+    <div>Property-Based Explainability - Draw a digit</div>
+    <br>
+    <div><canvas id="can" width="280" height="280" style="border: 1px solid #ccc;"></canvas></div>
+    <br>
+    <div>
+        <input type="button" value="submit" id="btn" size="25" onclick="submit()">
+        <input type="button" value="clear" id="clr" size="23" onclick="erase()">
+    </div>
+    <br>
+    
+    <div class="transform-section">
+        <div class="transform-header">
+            <span><strong>Properties:</strong></span>
+            <button id="explain-transforms-btn" onclick="showTransformGuide()" style="margin-left: 10px; font-size: 12px;">
+                ❓ Property Guide
+            </button>
+            <button id="show-effectiveness-btn" onclick="toggleEffectiveness()" style="margin-left: 5px; font-size: 12px;">
+                📊 Show AUC
+            </button>
+        </div>
+        
+        <div>
+            <table>
+                <tr>
+                    <td class="transform-cell" 
+                        data-transform="skel"
+                        onmouseover="showQuickTooltip(this, 'skel')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('skel')">
+                        <img id="skel" width="28" height="28">
+                        <figcaption>Stroke</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="ellipse"
+                        onmouseover="showQuickTooltip(this, 'ellipse')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('ellipse')">
+                        <img id="ellipse" width="28" height="28">
+                        <figcaption>Ellipse</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="circle"
+                        onmouseover="showQuickTooltip(this, 'circle')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('circle')">
+                        <img id="circle" width="28" height="28">
+                        <figcaption>Circle</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="ellipse-circle"
+                        onmouseover="showQuickTooltip(this, 'ellipse-circle')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('ellipse-circle')">
+                        <img id="ellipse-circle" width="28" height="28">
+                        <figcaption>Ellipse-Circle</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="corner"
+                        onmouseover="showQuickTooltip(this, 'corner')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('corner')">
+                        <img id="corner" width="28" height="28">
+                        <figcaption>Corner</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="endpoint"
+                        onmouseover="showQuickTooltip(this, 'endpoint')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('endpoint')">
+                        <img id="endpoint" width="28" height="28">
+                        <figcaption>Endpoint</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="crossing"
+                        onmouseover="showQuickTooltip(this, 'crossing')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('crossing')">
+                        <img id="crossing" width="28" height="28">
+                        <figcaption>Crossing</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="line"
+                        onmouseover="showQuickTooltip(this, 'line')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('line')">
+                        <img id="line" width="28" height="28">
+                        <figcaption>Line</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="chull"
+                        onmouseover="showQuickTooltip(this, 'chull')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('chull')">
+                        <img id="chull" width="28" height="28">
+                        <figcaption>Convex Hull</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="fill"
+                        onmouseover="showQuickTooltip(this, 'fill')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('fill')">
+                        <img id="fill" width="28" height="28">
+                        <figcaption>Enclosed Region</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="raw"
+                        onmouseover="showQuickTooltip(this, 'raw')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('raw')">
+                        <img id="raw" width="28" height="28">
+                        <figcaption>Unexplainable</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                    <td class="transform-cell" 
+                        data-transform="pca"
+                        onmouseover="showQuickTooltip(this, 'pca')"
+                        onmouseout="hideQuickTooltip()"
+                        onclick="showDetailedExplanation('pca')">
+                        <img id="pca" width="28" height="28">
+                        <figcaption>PCA</figcaption>
+                        <div class="effectiveness-badge" style="display: none;">Loading...</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Quick tooltip -->
+    <div id="quick-tooltip" class="tooltip"></div>
+    
+    <!-- Detailed explanation modal -->
+    <div id="detailed-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDetailedModal()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+    
+    <br>
+    <div><strong>Results:</strong></div>
+    <div><label id="label0"></label></div>
+    <div><label id="label1"></label></div>
+    <div><label id="label2"></label></div>
+    <div><label id="label3"></label></div>
+    
+    <div style="position: absolute; top: 0; right: 10;">
+        <p>Copyright &copy; 2025</p>
+    </div>
+
+    <script>
+        // Initialize effectiveness metrics when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEffectivenessMetrics('002');
+        });
+        
+        // Also load when opening from file:// (fallback for static HTML)
+        window.addEventListener('load', function() {
+            // If we're loading from file://, use defaults since API won't be available
+            if (window.location.protocol === 'file:') {
+                setDefaultEffectivenessValues();
+            }
+        });
+    </script>
+</body>
+</html>

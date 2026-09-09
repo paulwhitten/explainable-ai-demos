@@ -1,0 +1,338 @@
+<html>
+    <script type="text/javascript">
+
+    // from https://stackoverflow.com/questions/2368784/draw-on-html5-canvas-using-a-mouse
+    // https://stackoverflow.com/questions/10673122/how-to-save-canvas-as-an-image-with-canvas-todataurl
+    var canvas, ctx, flag = false,
+        prevX = 0,
+        currX = 0,
+        prevY = 0,
+        currY = 0,
+        dot_flag = false;
+
+    const x = "white";
+    const y = 16;
+    
+    function init() {
+        canvas = document.getElementById('can');
+        ctx = canvas.getContext("2d");
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        w = canvas.width;
+        h = canvas.height;
+    
+        // Unified input: use Pointer Events (works for mouse, touch and pen)
+        // Prevent the browser from handling gestures (scroll/zoom) when interacting with the canvas
+        canvas.style.touchAction = 'none';
+
+        // Pointer down/move/up handlers call the same findxy() function
+        canvas.addEventListener('pointerdown', function (e) {
+            if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+            e.preventDefault();
+            findxy('down', e);
+        }, false);
+
+        canvas.addEventListener('pointermove', function (e) {
+            // don't call preventDefault here unless necessary; pointerdown already disabled touch-action
+            findxy('move', e);
+        }, false);
+
+        canvas.addEventListener('pointerup', function (e) {
+            if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+            e.preventDefault();
+            findxy('up', e);
+        }, false);
+
+        canvas.addEventListener('pointercancel', function (e) {
+            if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+            findxy('out', e);
+        }, false);
+
+        ctx.lineWidth = y;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'white';
+    }
+    
+    function draw() {
+        ctx.beginPath();
+        ctx.moveTo(prevX, prevY);
+        ctx.lineTo(currX, currY);
+        ctx.strokeStyle = x;
+        ctx.lineWidth = y;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.closePath();
+    }
+    
+    function erase() {
+        //var m = confirm("Want to clear");
+        //ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < 4; i++) {
+            document.getElementById('label' + i).innerHTML = '';
+        }
+
+        document.getElementById('skel').src = "";
+        document.getElementById('chull').src = "";
+        document.getElementById('endpoint').src = "";
+        document.getElementById('corner').src = "";
+        document.getElementById('crossing').src = "";
+        document.getElementById('line').src = "";
+        document.getElementById('circle').src = "";
+        document.getElementById('ellipse-circle').src = "";
+        document.getElementById('ellipse').src = "";
+        document.getElementById('fill').src = "";
+        document.getElementById('raw').src = "";
+
+    }
+    
+    function submit() {
+
+        let transNameToProp = {
+            skel: "stroke",
+            chull: "convex hull",
+            fill: "enclosed region"
+        };
+
+        // scale to 28x28 using an offscreen canvas
+        const tmp = document.createElement('canvas');
+        tmp.width = 28;
+        tmp.height = 28;
+        const tctx = tmp.getContext('2d');
+
+        // match your background (black) so downscaling blends correctly
+        tctx.fillStyle = 'black';
+        tctx.fillRect(0, 0, tmp.width, tmp.height);
+
+        // make the downscale high-quality
+        tctx.imageSmoothingEnabled = true;
+        tctx.imageSmoothingQuality = 'high';
+
+        // draw the source canvas into the 28x28 canvas (scales it)
+        tctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tmp.width, tmp.height);
+
+        // get the 28x28 pixel data
+        const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
+
+        // build the array the server expects (single channel). Use the red channel (R=G=B) or compute luminance.
+        // If your pipeline expects 0-255 values, push the raw channel; if it expects 0-1, divide by 255.
+        let img = [];
+        for (let i = 0; i < imgData.data.length; i += 4) {
+            // pick red channel (imgData.data[i]) or compute grayscale:
+            // const r = imgData.data[i], g = imgData.data[i+1], b = imgData.data[i+2];
+            // const gray = Math.round(0.299*r + 0.587*g + 0.114*b);
+            img.push(imgData.data[i]); // 0..255 per pixel
+        }
+        
+        console.log(img);
+
+        // https://stackoverflow.com/questions/36975619/how-to-call-a-rest-web-service-api-from-javascript
+        // https://fastapi.tiangolo.com/ 
+        fetch('/submit', {
+            method: 'POST',
+            //crossorigin: true,
+            //mode: 'no-cors',
+            headers: {
+                "Content-Type": "application/json",
+			    "Accept": "application/json"
+            },
+            body: JSON.stringify(img)
+        })
+        .then(data => {
+            return data.json()
+        })
+        .then(d => {
+            console.log("json:", d)
+            console.log(typeof(d))
+            tally = JSON.parse(d)
+            // get the total weight
+            let total = 0.0
+            for (let v of tally) {
+                // sort attributions based on effectiveness
+                v.attributions.sort((a, b) => {
+                    return b.effectiveness - a.effectiveness;
+                });
+                total += v.value;
+                v["exp"] = v.explainability / v.value;
+            }
+            // sort the votes
+            tally.sort((a, b) => {
+                return b.value - a.value
+            });
+            let count = 0
+            for (let v of tally) {
+                v.pred = v.value / total;
+                let res = "The digit " + v. class
+                if (count == 0) {
+                    res += " won"
+                } else {
+                    res += " was an alternative"
+                }
+                res += " with confidence " + v.pred.toPrecision(3) + " and explainability " + v.exp.toPrecision(3) + " due to the "
+                let prop_ix = 0;
+                for (let a of v.attributions) {
+                    if (a.image) {
+                        //document.getElementById(a.name).style.border = "2px solid";
+                        //var dataURL = canvas.toDataURL();
+                        var img = document.getElementById(a.name);
+                        console.log("image:", a.name, img);
+                        if (img) {
+                            img.src = 'data:image/png;base64,' + a.image;
+                        }
+                        //document.getElementById(a.name).style.display = "inline";
+                        /*
+                        const tmp_canvas = document.createElement('tmp_canvas'); 
+                        const tmp_ctx = canvas.getContext('2d'); 
+                        tmp_canvas.width = 28; 
+                        tmp_canvas.height = 28;
+                        var image_data = tmp_ctx.createImageData(28, 28);
+                        var data = image_data.data;
+                        let count = 0;
+                        for (let i = 0; i < data.length; data += 4) {
+                            data[i] = data[i+1] = data[i+2] = a.image[count];
+                            data[i+3] = 255;
+                            count++;
+                        }
+                        tmp_ctx.putImageData(image_data, 0, 0);
+                        var dataURL = canvas.toDataURL();
+                        img.src = dataURL;
+                        */
+                    }
+                    if (prop_ix != 0) {
+                        res += ", "
+                    }
+                    res += transNameToProp[a.name] || a.name
+                    prop_ix++;
+                }
+                res += " propert"
+                if (prop_ix > 1) {
+                    res += "ies"
+                } else {
+                    res += "y"
+                }
+                if (count < 4 && v.value > 0.0) {
+                    document.getElementById('label' + count).innerHTML = res;
+                }
+                count++;
+            }
+            console.log("tally:", tally)
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
+
+    }
+    
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+
+    function findxy(res, e) {
+        // Normalize coordinates to canvas space.
+        const pos = getCanvasCoords(e);
+        if (res == 'down') {
+            prevX = currX;
+            prevY = currY;
+            currX = pos.x;
+            currY = pos.y;
+    
+            flag = true;
+            dot_flag = true;
+            if (dot_flag) {
+                ctx.beginPath();
+                ctx.fillStyle = x;
+                //ctx.lineCap = 'round';
+                ctx.stroke();
+                //ctx.fillRect(currX, currY, y, y);
+                ctx.arc(currX, currY, y/2, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.closePath();
+                dot_flag = false;
+            }
+        }
+        if (res == 'up' || res == "out") {
+            flag = false;
+        }
+        if (res == 'move') {
+            if (flag) {
+                prevX = currX;
+                prevY = currY;
+                currX = pos.x;
+                currY = pos.y;
+                draw();
+            }
+        }
+    }
+
+    </script>
+    <body onload="init()">
+        <div>Draw a digit</div>
+        <br>
+        <div><canvas id="can" width="280" height="280"></canvas></div>
+        <br>
+        <div>
+            <input type="button" value="submit" id="btn" size="25" onclick="submit()">
+            <input type="button" value="clear" id="clr" size="23" onclick="erase()">
+        </div>
+        <br>
+        <div>Transforms:</div>
+        <div>
+            <table>
+                <tr>
+                    <td>
+                        <img id="skel" width="28" height="28"><figcaption>Skel</figcaption>
+                    </td>
+                    <td>
+                        <img id="chull" width="28" height="28"><figcaption>Chu</figcaption>
+                    </td>
+                    <td>
+                        <img id="endpoint" width="28" height="28"><figcaption>EP</figcaption>
+                    </td>
+                    <td>
+                        <img id="corner" width="28" height="28"><figcaption>Cor</figcaption>
+                    </td>
+                    <td>
+                        <img id="crossing" width="28" height="28"><figcaption>Cro</figcaption>
+                    </td>
+                    <td>
+                        <img id="line" width="28" height="28"><figcaption>Lin</figcaption>
+                    </td>
+                    <td>
+                        <img id="circle" width="28" height="28"><figcaption>Cir</figcaption>
+                    </td>
+                    <td>
+                        <img id="ellipse-circle" width="28" height="28"><figcaption>EC</figcaption>
+                    </td>
+                    <td>
+                        <img id="ellipse" width="28" height="28"><figcaption>El</figcaption>
+                    </td>
+                    <td>
+                        <img id="fill" width="28" height="28"><figcaption>Fill</figcaption>
+                    </td>
+                    <td>
+                        <img id="raw" width="28" height="28"><figcaption>Raw</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br>
+        <div>Results:</div>
+        <div><label id="label0"></label> </div>
+        <div><label id="label1"></label> </div>
+        <div><label id="label2"></label> </div>
+        <div><label id="label3"></label> </div>
+
+        <div  style="position: absolute; bottom: 0;">
+            <p>
+                Copyright &copy; 2024
+            </p>
+        </div>
+    </body>
+    </html>
+

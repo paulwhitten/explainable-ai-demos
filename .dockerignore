@@ -1,0 +1,24 @@
+.git
+.gitignore
+.dockerignore
+working/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Regenerable data and training artifacts (mounted from ZFS at runtime)
+images/
+transforms/
+cbe_out_mnist/
+out_neighbors/
+kb/
+models/
+cbe_models/
+log/
+old_pipelines/
+node_modules/
+
+# Non-runtime docs
+containerization_plan.md
