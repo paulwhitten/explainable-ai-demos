@@ -320,6 +320,11 @@ if __name__ == '__main__':
     # also emit a compact float32 array the serving path can memory-map
     np.save(os.path.join(args.output, TRAIN_DATA_NPY_NAME), np.asarray(train_images, dtype=np.float32))
 
+    # place the trained model beside the case base the serving path loads
+    if args.type == InferenceEngine.nn:
+        import shutil
+        shutil.copyfile(os.path.join(MODEL_FOLDER, NN_MODEL_NAME), os.path.join(args.output, NN_MODEL_NAME))
+
     NEIGHBOR_COUNT = 25
     loaded_neighbors = False
     neighbor_file_path = os.path.join(args.neighbor_folder, "neighbors.json")

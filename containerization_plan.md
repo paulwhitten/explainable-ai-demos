@@ -278,6 +278,9 @@ section.
 - Optionally keep the roughly 80 MB runtime-set LFS mirror in the public repo so
   the demo can boot immediately without regeneration.
 
+To regenerate the binaries from scratch under the modern stack, see
+`REGENERATE_ASSETS.md`.
+
 ## Open decisions
 
 - Final host: TrueNAS, this machine, or AGX Thor. If the AGX Thor is in scope,

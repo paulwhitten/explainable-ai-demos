@@ -74,14 +74,12 @@ a rebuild.
 
 ## Track B: case-based data
 
-`case_based_mnist.py` trains the case-based MLP and writes the case base. It
-saves the model to `cbe_models/nn.model`, so copy it into `out_neighbors/`
-afterward.
+`case_based_mnist.py` trains the case-based MLP and writes the case base,
+including `nn.model`, into the output folder.
 
 ```bash
 mkdir -p out_neighbors
 python case_based_mnist.py -m "$MNIST_DIR" -n out_neighbors -o out_neighbors -t nn
-cp cbe_models/nn.model out_neighbors/nn.model
 ```
 
 This writes `out_neighbors/train_labels.json`, `out_neighbors/train_data.json`,
