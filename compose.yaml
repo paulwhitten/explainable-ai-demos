@@ -16,6 +16,9 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    # cloudflared reads TUNNEL_TOKEN from the environment (see sample.env)
+    env_file:
+      - .env
+    command: tunnel --no-autoupdate run
     depends_on:
       - app

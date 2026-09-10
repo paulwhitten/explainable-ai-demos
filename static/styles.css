@@ -1,0 +1,44 @@
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #1a1a1a;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    line-height: 1.4;
+}
+
+h3 {
+    margin-bottom: 0.5rem;
+}
+
+canvas {
+    border: 1px solid #ccc;
+    touch-action: none;
+}
+
+input[type="button"] {
+    padding: 6px 14px;
+    margin: 6px 6px 6px 0;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+table {
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+}
+
+td, th {
+    padding: 4px 6px;
+    vertical-align: top;
+}
+
+img {
+    image-rendering: pixelated;
+}
+
+figcaption {
+    font-size: 12px;
+    text-align: center;
+    color: #555;
+}
