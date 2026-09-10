@@ -1,0 +1,27 @@
+# TrueNAS Community Edition -- Apps > Discover Apps > Custom App > Install via YAML
+# Serves the explainable-ai demos and publishes them through a Cloudflare tunnel.
+# Runtime assets are read (read-only) from the ZFS dataset; the tunnel token comes
+# from the dataset's .env (never committed).
+services:
+  app:
+    image: ghcr.io/paulwhitten/explainable-ai-demos:latest
+    restart: unless-stopped
+    mem_limit: 4g
+    expose:
+      - "8000"
+    volumes:
+      - /mnt/pool0/apps/explainable-ai-demos/models:/app/models:ro
+      - /mnt/pool0/apps/explainable-ai-demos/kb:/app/kb:ro
+      - /mnt/pool0/apps/explainable-ai-demos/out_neighbors:/app/out_neighbors:ro
+    # Optional: also reach the app directly on the NAS at http://<nas-ip>:8000
+    # ports:
+    #   - "8000:8000"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    env_file:
+      - /mnt/pool0/apps/explainable-ai-demos/.env
+    command: tunnel --no-autoupdate run
+    depends_on:
+      - app
