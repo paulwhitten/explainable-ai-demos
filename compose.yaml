@@ -14,7 +14,10 @@ services:
       - ${ASSETS_DIR:-./assets}/out_neighbors:/app/out_neighbors:ro
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned (not :latest) so a redeploy is deterministic and auditable.
+    # Must be >= 2026.10.2 to drop trust in the compromised eMudhra/emSign
+    # intermediate certificates (Cloudflare advisory, 2026-10-20).
+    image: cloudflare/cloudflared:2026.10.6
     restart: unless-stopped
     # cloudflared reads TUNNEL_TOKEN from the environment (see sample.env)
     env_file:

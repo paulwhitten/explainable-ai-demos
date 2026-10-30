@@ -18,7 +18,10 @@ services:
     #   - "8000:8000"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned (not :latest) so a redeploy is deterministic and auditable.
+    # Must be >= 2026.10.2 to drop trust in the compromised eMudhra/emSign
+    # intermediate certificates (Cloudflare advisory, 2026-10-20).
+    image: cloudflare/cloudflared:2026.10.6
     restart: unless-stopped
     env_file:
       - /mnt/pool0/apps/explainable-ai-demos/.env
