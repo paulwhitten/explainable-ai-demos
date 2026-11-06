@@ -20,5 +20,6 @@ log/
 old_pipelines/
 node_modules/
 
-# Non-runtime docs
+# Non-runtime docs and tests
+tests/
 containerization_plan.md

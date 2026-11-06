@@ -1,7 +1,7 @@
 from typing import Union
-from fastapi import FastAPI, APIRouter
-from fastapi import Request
+from fastapi import FastAPI, APIRouter, Depends
 from fastapi.staticfiles import StaticFiles
+from request_validation import read_image
 from transform_parallel import get_image_from_list, image_data_to_list, get_transforms
 from skimage import filters
 from skimage.measure import regionprops
@@ -89,7 +89,7 @@ def read_root():
 
 # get effectiveness metrics for all transforms in a build
 @app.get("/api/effectiveness/{build_name}")
-async def get_effectiveness_metrics(build_name: str):
+def get_effectiveness_metrics(build_name: str):
     try:
         # Try to load knowledge base metrics for the build
         kb_path = f"kb/mnist/nn/{build_name}/kb.json"
@@ -165,161 +165,86 @@ async def get_effectiveness_metrics(build_name: str):
 
 # submit post for the rendered image
 @app.post("/submit_pbe")
-async def submit(request: Request):
+def submit(image_data: list[int] = Depends(read_image)):
     logger.debug("Submit log")
-    content_type = request.headers.get('Content-Type')
-    if content_type is None:
-        logger.error("content error")
-        return 'No Content-Type provided.'
-    elif content_type == 'application/json':
-        try:
-            logger.debug("submit json processing")
-            body_data = await request.body()
-            #logger.debug(body_data)
-            image_data = json.loads(body_data) # an array representing the image
-            #logger.debug(image_data)
 
-            # center the image
-            com = center_of_mass(image_data)
-            img = get_image_from_list(image_data)
-            centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
-            centered_data = image_data_to_list(centered)
-            
-            # transform
-            raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca = get_transforms(centered_data)
-            
-            # feed the data into the various models to get voted
-            # calculate the results based on kb effectiveness
-            # assemble a response with explainability
-            res = calc.get_result(raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca)
+    # center the image
+    com = center_of_mass(image_data)
+    img = get_image_from_list(image_data)
+    centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
+    centered_data = image_data_to_list(centered)
 
-            return json.dumps(res)
-        except json.JSONDecodeError:
-            logger.error("JSON error")
-            return 'Invalid JSON data.'
-    else:
-        logger.error("content type not supported")
-        logger.error(content_type)
-        return 'Content-Type not supported.'
-    
+    # transform
+    raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca = get_transforms(centered_data)
+
+    # feed the data into the various models to get voted
+    # calculate the results based on kb effectiveness
+    # assemble a response with explainability
+    res = calc.get_result(raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca)
+
+    return json.dumps(res)
+
 
 # submit post for the rendered image
 @app.post("/submit_cbe")
-async def submit(request: Request):
+def submit(image_data: list[int] = Depends(read_image)):
     logger.debug("Submit log")
-    content_type = request.headers.get('Content-Type')
-    if content_type is None:
-        logger.error("content error")
-        return 'No Content-Type provided.'
-    elif content_type == 'application/json':
-        try:
-            logger.debug("submit json processing")
-            body_data = await request.body()
-            #logger.debug(body_data)
-            image_data = json.loads(body_data) # an array representing the image
-            #logger.debug(image_data)
 
-            # center the image
-            com = center_of_mass(image_data)
-            img = get_image_from_list(image_data)
-            centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
-            centered_data = image_data_to_list(centered)
-            buf = BytesIO()
-            img = (np.array(centered_data)).astype(np.uint8)
-            imageio.imwrite(buf, img.reshape((28, 28)), format='png')
-            b64_centered_image = base64.b64encode(buf.getbuffer()).decode('utf-8')
+    # center the image
+    com = center_of_mass(image_data)
+    img = get_image_from_list(image_data)
+    centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
+    centered_data = image_data_to_list(centered)
+    buf = BytesIO()
+    img = (np.array(centered_data)).astype(np.uint8)
+    imageio.imwrite(buf, img.reshape((28, 28)), format='png')
+    b64_centered_image = base64.b64encode(buf.getbuffer()).decode('utf-8')
 
-            res = cbe_service.explain_feature(centered_data)
-            res["centered"] = b64_centered_image
+    res = cbe_service.explain_feature(centered_data)
+    res["centered"] = b64_centered_image
 
-            return json.dumps(res)
-        
-        except json.JSONDecodeError:
-            logger.error("JSON error")
-            return 'Invalid JSON data.'
-    else:
-        logger.error("content type not supported")
-        logger.error(content_type)
-        return 'Content-Type not supported.'
-
-    #b = await request.body()
-    #print(b)
-    ## TODO process
-
-    #return {"json": {}}
+    return json.dumps(res)
 
 # submit endpoint comparing feature-space and activation-space case retrieval
 @app.post("/submit_similarity_compare")
-async def submit_similarity_compare(request: Request):
+def submit_similarity_compare(image_data: list[int] = Depends(read_image)):
     logger.debug("Submit similarity compare")
-    content_type = request.headers.get('Content-Type')
-    if content_type is None:
-        logger.error("content error")
-        return 'No Content-Type provided.'
-    elif content_type == 'application/json':
-        try:
-            body_data = await request.body()
-            image_data = json.loads(body_data)
-            com = center_of_mass(image_data)
-            img = get_image_from_list(image_data)
-            centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
-            centered_data = image_data_to_list(centered)
-            buf = BytesIO()
-            cimg = (np.array(centered_data)).astype(np.uint8)
-            imageio.imwrite(buf, cimg.reshape((28, 28)), format='png')
-            b64_centered_image = base64.b64encode(buf.getbuffer()).decode('utf-8')
+    com = center_of_mass(image_data)
+    img = get_image_from_list(image_data)
+    centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
+    centered_data = image_data_to_list(centered)
+    buf = BytesIO()
+    cimg = (np.array(centered_data)).astype(np.uint8)
+    imageio.imwrite(buf, cimg.reshape((28, 28)), format='png')
+    b64_centered_image = base64.b64encode(buf.getbuffer()).decode('utf-8')
 
-            res = cbe_service.explain_both(centered_data)
-            res["centered"] = b64_centered_image
-            return res
-        except json.JSONDecodeError:
-            logger.error("JSON error")
-            return 'Invalid JSON data.'
-    else:
-        logger.error("content type not supported")
-        logger.error(content_type)
-        return 'Content-Type not supported.'
+    res = cbe_service.explain_both(centered_data)
+    res["centered"] = b64_centered_image
+    return res
 
 # submit endpoint for mouse_and_touch_draw.html (from 2024 project)
 @app.post("/submit")
-async def submit_simple(request: Request):
+def submit_simple(image_data: list[int] = Depends(read_image)):
     logger.debug("Submit log (simple)")
-    content_type = request.headers.get('Content-Type')
-    if content_type is None:
-        logger.error("content error")
-        return 'No Content-Type provided.'
-    elif content_type == 'application/json':
-        try:
-            logger.debug("submit json processing")
-            body_data = await request.body()
-            image_data = json.loads(body_data) # an array representing the image
-            
-            # center the image
-            com = center_of_mass(image_data)
-            img = get_image_from_list(image_data)
-            centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
-            centered_data = image_data_to_list(centered)
-            
-            # transform
-            raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca = get_transforms(centered_data)
-            
-            # feed the data into the various models to get voted
-            # calculate the results based on kb effectiveness
-            # assemble a response with explainability
-            if calc is not None:
-                res = calc.get_result(raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca)
-                return json.dumps(res)
-            else:
-                logger.error("Calculator not initialized")
-                return json.dumps({"error": "Calculator not initialized"})
-                
-        except json.JSONDecodeError:
-            logger.error("JSON decode error")
-            return 'Invalid JSON.'
+
+    # center the image
+    com = center_of_mass(image_data)
+    img = get_image_from_list(image_data)
+    centered = translate_img(img, int(13.0-com[0]), int(13.0-com[1]))
+    centered_data = image_data_to_list(centered)
+
+    # transform
+    raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca = get_transforms(centered_data)
+
+    # feed the data into the various models to get voted
+    # calculate the results based on kb effectiveness
+    # assemble a response with explainability
+    if calc is not None:
+        res = calc.get_result(raw, thresh, skel, fill, corner, ellipse, circle, ellipse_circle, skel_fill, crossing, endpoint, line, chull, pca)
+        return json.dumps(res)
     else:
-        logger.error("content type not supported")
-        logger.error(content_type)
-        return 'Content-Type not supported.'
+        logger.error("Calculator not initialized")
+        return json.dumps({"error": "Calculator not initialized"})
 
 #if __name__ == '__main__':
 #    uvicorn.run("main_api:app", port=8000)

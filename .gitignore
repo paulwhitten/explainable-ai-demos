@@ -11,6 +11,7 @@ node_modules/
 debug_*.py
 debug_*.png
 test_*.py
+!tests/test_*.py
 test_*.png
 simple_debug_*.png
 skeleton_comparison_*.png
