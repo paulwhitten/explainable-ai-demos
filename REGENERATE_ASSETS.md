@@ -136,11 +136,7 @@ git push
 
 ## Deploy the refreshed assets
 
-The container mounts these from the ZFS dataset (see the containerization plan).
-Sync the published assets onto the dataset and restart:
-
-```bash
-# on TrueNAS: pull the assets repo (or rsync the five items) into the dataset
-git -C /mnt/pool/apps/svm-xai/assets pull   # dataset checkout of the assets repo
-docker compose restart app
-```
+The container reads these assets read-only from the server's dataset. Syncing
+them there and restarting the app is part of the deployment, which lives in the
+private `whitten.dev-ai-demos` repo. See "Refreshing the explainable app's
+assets" in its README.

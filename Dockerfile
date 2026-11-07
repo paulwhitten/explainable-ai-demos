@@ -25,7 +25,7 @@ COPY --from=build /opt/venv /opt/venv
 COPY . .
 # Run as an unprivileged user that cannot modify the application files. The
 # default 568 is the "apps" user on TrueNAS SCALE. It must be able to read the
-# assets mounted from ASSETS_DIR.
+# assets mounted into /app/models, /app/kb, and /app/out_neighbors.
 ARG APP_UID=568
 ARG APP_GID=568
 RUN chmod -R a+rX /app \
